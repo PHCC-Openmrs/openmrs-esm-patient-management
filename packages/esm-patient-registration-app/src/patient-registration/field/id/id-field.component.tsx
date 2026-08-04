@@ -44,7 +44,8 @@ export function initializeIdentifier(identifierType: PatientIdentifierType, iden
     identifierName: identifierType.name,
     preferred: identifierType.isPrimary,
     initialValue: '',
-    required: identifierType.isPrimary || identifierType.required,
+    // National ID should always be treated as required, same as OpenMRS ID.
+    required: identifierType.isPrimary || identifierType.required || identifierType.name === 'National ID',
     ...identifierProps,
     ...setIdentifierSource(
       identifierProps?.selectedSource ?? identifierType.identifierSources?.[0],
@@ -76,6 +77,8 @@ export const Identifiers: React.FC = () => {
           (type) =>
             type.isPrimary ||
             type.required ||
+            // National ID should always be included by default, same as OpenMRS ID.
+            type.name === 'National ID' ||
             !!defaultPatientIdentifierTypes?.find(
               (defaultIdentifierTypeUuid) => defaultIdentifierTypeUuid === type.uuid,
             ),
@@ -111,7 +114,7 @@ export const Identifiers: React.FC = () => {
     return (
       <div className={styles.halfWidthInDesktopView}>
         <div className={styles.identifierLabelText}>
-          <h4 className={styles.productiveHeading02Light}>{t('idFieldLabelText', 'Identifiers')}</h4>
+          {/* <h4 className={styles.productiveHeading02Light}>{t('idFieldLabelText', 'Identifiers')}</h4> */}
         </div>
         <div role="progressbar" aria-label={t('loading', 'Loading')}>
           <SkeletonText />
@@ -124,23 +127,24 @@ export const Identifiers: React.FC = () => {
     <div className={styles.halfWidthInDesktopView}>
       <UserHasAccess privilege={['Get Identifier Types', 'Add Patient Identifiers']}>
         <div className={styles.identifierLabelText}>
-          <h4 className={styles.productiveHeading02Light}>{t('idFieldLabelText', 'Identifiers')}</h4>
-          <Button
+          {/* <h4 className={styles.productiveHeading02Light}>{t('idFieldLabelText', 'Identifiers')}</h4> */}
+          {/* Configure disabled: identifiers shown are limited to the defaults (OpenMRS ID, National ID, etc). */}
+          {/* <Button
             kind="ghost"
             className={styles.configureIdentifiersButton}
             onClick={() => setShowIdentifierOverlay(true)}
             size={isDesktop(layout) ? 'sm' : 'md'}>
             {t('configure', 'Configure')} <ArrowRight className={styles.arrowRightIcon} size={16} />
-          </Button>
+          </Button> */}
         </div>
       </UserHasAccess>
       <div>
         {Object.entries(values.identifiers).map(([fieldName, identifier]) => (
           <IdentifierInput key={fieldName} fieldName={fieldName} patientIdentifier={identifier} />
         ))}
-        {showIdentifierOverlay && (
+        {/* {showIdentifierOverlay && (
           <IdentifierSelectionOverlay setFieldValue={setFieldValue} closeOverlay={closeIdentifierSelectionOverlay} />
-        )}
+        )} */}
       </div>
     </div>
   );
