@@ -109,16 +109,35 @@ export function getValidationSchema(
     email: Yup.string().optional().email(t('invalidEmail', 'Invalid email')),
     identifiers: Yup.lazy((obj: FormValues['identifiers']) =>
       Yup.object(
-        mapValues(obj, () =>
-          Yup.object({
+        mapValues(obj, (identifier) => {
+          let schema = Yup.string().when('required', {
+            is: true,
+            then: Yup.string().required(t('identifierValueRequired', 'Identifier value is required')),
+            otherwise: Yup.string().notRequired(),
+          });
+          if (identifier?.identifierName === 'National ID') {
+            schema = schema
+              .test(
+                'national-id-starts-with',
+                t('nationalIdStartsWith', 'National ID must start with 4, 5, or 7'),
+                (value) => !value || /^[457]/.test(value),
+              )
+              .test(
+                'national-id-min-length',
+                t('nationalIdMinLength', 'National ID must be at least 9 digits'),
+                (value) => !value || value.replace(/\D/g, '').length >= 9,
+              )
+              .test(
+                'luhn-check',
+                t('invalidCheckDigit', 'Invalid check digit'),
+                (value) => !value || isValidLuhn(value),
+              );
+          }
+          return Yup.object({
             required: Yup.bool(),
-            identifierValue: Yup.string().when('required', {
-              is: true,
-              then: Yup.string().required(t('identifierValueRequired', 'Identifier value is required')),
-              otherwise: Yup.string().notRequired(),
-            }),
-          }),
-        ),
+            identifierValue: schema,
+          });
+        }),
       ),
     ),
     relationships: Yup.array().of(
