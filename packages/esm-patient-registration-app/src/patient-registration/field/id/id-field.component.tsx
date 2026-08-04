@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SkeletonText } from '@carbon/react';
-import { useConfig } from '@openmrs/esm-framework';
+import { Button, SkeletonText } from '@carbon/react';
+import { ArrowRight } from '@carbon/react/icons';
+import { useLayoutType, useConfig, isDesktop, UserHasAccess } from '@openmrs/esm-framework';
 import { usePatientRegistrationContext } from '../../patient-registration-context';
 import { useResourcesContext } from '../../../resources-context';
 import type {
@@ -11,6 +12,7 @@ import type {
   PatientIdentifierValue,
 } from '../../patient-registration.types';
 import IdentifierInput from '../../input/custom-input/identifier/identifier-input.component';
+import IdentifierSelectionOverlay from './identifier-selection-overlay.component';
 import styles from '../field.scss';
 
 export function setIdentifierSource(
@@ -42,6 +44,7 @@ export function initializeIdentifier(identifierType: PatientIdentifierType, iden
     identifierName: identifierType.name,
     preferred: identifierType.isPrimary,
     initialValue: '',
+    // National ID should always be treated as required, same as OpenMRS ID.
     required: identifierType.isPrimary || identifierType.required || identifierType.name === 'National ID',
     ...identifierProps,
     ...setIdentifierSource(
@@ -61,6 +64,8 @@ export const Identifiers: React.FC = () => {
   const isLoading = !identifierTypes?.length;
   const { values, setFieldValue, initialFormValues, isOffline } = usePatientRegistrationContext();
   const { t } = useTranslation();
+  const layout = useLayoutType();
+  const [showIdentifierOverlay, setShowIdentifierOverlay] = useState(false);
   const config = useConfig();
   const { defaultPatientIdentifierTypes } = config;
 
@@ -100,9 +105,17 @@ export const Identifiers: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identifierTypes, setFieldValue, defaultPatientIdentifierTypes, values.identifiers, initializeIdentifier]);
 
+  const closeIdentifierSelectionOverlay = useCallback(
+    () => setShowIdentifierOverlay(false),
+    [setShowIdentifierOverlay],
+  );
+
   if (isLoading && !isOffline) {
     return (
       <div className={styles.halfWidthInDesktopView}>
+        <div className={styles.identifierLabelText}>
+          {/* <h4 className={styles.productiveHeading02Light}>{t('idFieldLabelText', 'Identifiers')}</h4> */}
+        </div>
         <div role="progressbar" aria-label={t('loading', 'Loading')}>
           <SkeletonText />
         </div>
@@ -112,10 +125,26 @@ export const Identifiers: React.FC = () => {
 
   return (
     <div className={styles.halfWidthInDesktopView}>
+      <UserHasAccess privilege={['Get Identifier Types', 'Add Patient Identifiers']}>
+        <div className={styles.identifierLabelText}>
+          {/* <h4 className={styles.productiveHeading02Light}>{t('idFieldLabelText', 'Identifiers')}</h4> */}
+          {/* Configure disabled: identifiers shown are limited to the defaults (OpenMRS ID, National ID, etc). */}
+          {/* <Button
+            kind="ghost"
+            className={styles.configureIdentifiersButton}
+            onClick={() => setShowIdentifierOverlay(true)}
+            size={isDesktop(layout) ? 'sm' : 'md'}>
+            {t('configure', 'Configure')} <ArrowRight className={styles.arrowRightIcon} size={16} />
+          </Button> */}
+        </div>
+      </UserHasAccess>
       <div>
         {Object.entries(values.identifiers).map(([fieldName, identifier]) => (
           <IdentifierInput key={fieldName} fieldName={fieldName} patientIdentifier={identifier} />
         ))}
+        {/* {showIdentifierOverlay && (
+          <IdentifierSelectionOverlay setFieldValue={setFieldValue} closeOverlay={closeIdentifierSelectionOverlay} />
+        )} */}
       </div>
     </div>
   );
