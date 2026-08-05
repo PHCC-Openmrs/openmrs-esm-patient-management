@@ -200,6 +200,7 @@ const ListDetailsTable: React.FC<ListDetailsTableProps> = ({
       filteredPatients?.map((patient) => ({
         id: patient.identifier,
         identifier: patient.identifier,
+        nationalId: patient.nationalId || '--',
         membershipUuid: patient.membershipUuid,
         name: columns.find((column) => column.key === 'name')?.link ? (
           <ConfigurableLink
@@ -320,7 +321,7 @@ const ListDetailsTable: React.FC<ListDetailsTableProps> = ({
           data-testid="data-table-skeleton"
           className={styles.dataTableSkeleton}
           rowCount={5}
-          columnCount={5}
+          columnCount={6}
           zebra
         />
       </div>

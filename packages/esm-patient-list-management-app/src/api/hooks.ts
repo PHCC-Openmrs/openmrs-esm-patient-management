@@ -1,7 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
-import { fhirBaseUrl, openmrsFetch, type FetchResponse, useConfig, useSession } from '@openmrs/esm-framework';
+import {
+  fhirBaseUrl,
+  restBaseUrl,
+  openmrsFetch,
+  type FetchResponse,
+  useConfig,
+  useSession,
+} from '@openmrs/esm-framework';
 import {
   cohortUrl,
   getAllPatientLists,
@@ -156,6 +163,51 @@ export interface SimplePatient {
   identifier: string;
   sex: string;
   birthDate: string;
+  nationalId: string;
+  phoneNumber: string;
+}
+
+interface PatientContactDetails {
+  nationalId: string;
+  phoneNumber: string;
+}
+
+const patientContactDetailsRepresentation =
+  'custom:(identifiers:(identifier,identifierType:(display)),person:(attributes:(value,attributeType:(display))))';
+
+async function fetchPatientContactDetails(patientUuids: Array<string>): Promise<Record<string, PatientContactDetails>> {
+  const results = await Promise.all(
+    patientUuids.map((uuid) =>
+      openmrsFetch(`${restBaseUrl}/patient/${uuid}?v=${patientContactDetailsRepresentation}`).then((res) => ({
+        uuid,
+        data: res.data,
+      })),
+    ),
+  );
+
+  return Object.fromEntries(
+    results.map(({ uuid, data }) => [
+      uuid,
+      {
+        nationalId:
+          data?.identifiers?.find((identifier) => identifier.identifierType?.display === 'National ID')?.identifier ??
+          '--',
+        phoneNumber:
+          data?.person?.attributes?.find((attribute) => attribute.attributeType?.display === 'Phone Number')?.value ??
+          '--',
+      },
+    ]),
+  );
+}
+
+function usePatientContactDetails(patientUuids: Array<string>) {
+  const swrKey = patientUuids.length ? ['patient-contact-details', ...patientUuids] : null;
+  const { data, isLoading } = useSWR(swrKey, () => fetchPatientContactDetails(patientUuids));
+
+  return {
+    contactDetailsByUuid: data ?? {},
+    isLoadingContactDetails: isLoading,
+  };
 }
 
 export function useAllPatients(startIndex: number = 0, pageSize: number = 10, searchTerm: string = '') {
@@ -164,21 +216,38 @@ export function useAllPatients(startIndex: number = 0, pageSize: number = 10, se
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<FetchResponse<fhir.Bundle>, Error>(url, openmrsFetch);
 
-  const patients: Array<SimplePatient> = (data?.data?.entry ?? [])
-    .map((entry) => entry.resource as fhir.Patient)
-    .filter(Boolean)
-    .map((patient) => ({
-      uuid: patient.id,
-      name: patient.name?.[0]?.text ?? '--',
-      identifier: patient.identifier?.[0]?.value ?? '--',
-      sex: patient.gender ?? '--',
-      birthDate: patient.birthDate ?? '--',
-    }));
+  const basePatients = useMemo(
+    () =>
+      (data?.data?.entry ?? [])
+        .map((entry) => entry.resource as fhir.Patient)
+        .filter(Boolean)
+        .map((patient) => ({
+          uuid: patient.id,
+          name: patient.name?.[0]?.text ?? '--',
+          identifier: patient.identifier?.[0]?.value ?? '--',
+          sex: patient.gender ?? '--',
+          birthDate: patient.birthDate ?? '--',
+        })),
+    [data],
+  );
+
+  const patientUuids = useMemo(() => basePatients.map((patient) => patient.uuid), [basePatients]);
+  const { contactDetailsByUuid, isLoadingContactDetails } = usePatientContactDetails(patientUuids);
+
+  const patients: Array<SimplePatient> = useMemo(
+    () =>
+      basePatients.map((patient) => ({
+        ...patient,
+        nationalId: contactDetailsByUuid[patient.uuid]?.nationalId ?? '--',
+        phoneNumber: contactDetailsByUuid[patient.uuid]?.phoneNumber ?? '--',
+      })),
+    [basePatients, contactDetailsByUuid],
+  );
 
   return {
     patients,
     totalPatients: data?.data?.total ?? 0,
-    isLoading,
+    isLoading: isLoading || (basePatients.length > 0 && isLoadingContactDetails),
     isValidating,
     error,
     mutate,

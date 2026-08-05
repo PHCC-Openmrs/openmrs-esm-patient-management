@@ -48,6 +48,8 @@ const AllPatientsTable: React.FC = () => {
     () => [
       { key: 'name', header: t('name', 'Name') },
       { key: 'identifier', header: t('identifier', 'Identifier') },
+      { key: 'nationalId', header: t('nationalId', 'National ID') },
+      { key: 'phoneNumber', header: t('phoneNumber', 'Phone Number') },
       { key: 'sex', header: t('sex', 'Sex') },
       { key: 'age', header: t('age', 'Age') },
     ],
@@ -64,6 +66,8 @@ const AllPatientsTable: React.FC = () => {
           </ConfigurableLink>
         ),
         identifier: patient.identifier,
+        nationalId: patient.nationalId,
+        phoneNumber: patient.phoneNumber,
         sex: patient.sex,
         age: patient.birthDate !== '--' ? age(patient.birthDate) : '--',
       })),
@@ -77,7 +81,7 @@ const AllPatientsTable: React.FC = () => {
           data-testid="data-table-skeleton"
           className={styles.dataTableSkeleton}
           rowCount={5}
-          columnCount={4}
+          columnCount={6}
           zebra
         />
       </div>

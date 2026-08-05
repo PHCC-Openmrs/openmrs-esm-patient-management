@@ -29,6 +29,7 @@ export function PersonAttributeField({ fieldDefinition }: PersonAttributeFieldPr
             label={fieldDefinition.label}
             required={fieldDefinition.validation?.required ?? false}
             hideOptionalLabel={fieldDefinition.hideOptionalLabel}
+            maxLength={fieldDefinition.maxLength}
             id={fieldDefinition?.id}
           />
         );

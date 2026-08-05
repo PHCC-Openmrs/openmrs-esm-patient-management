@@ -79,6 +79,10 @@ export const AddressComponent: React.FC = () => {
   }, [isLoadingFieldOrder, errorFetchingFieldOrder, orderedFields, addressLayout]);
 
   const renderAddressField = (attributes: (typeof addressLayout)[number], index: number) => {
+    if (!attributes.label) {
+      return null;
+    }
+
     const options = selectFieldOptionsByCodeName[attributes.name];
     if (options) {
       return (
@@ -100,6 +104,7 @@ export const AddressComponent: React.FC = () => {
         id={attributes.name}
         value={selected}
         required={attributes.required}
+        hideOptionalLabel={attributes.name === 'address1'}
       />
     );
   };

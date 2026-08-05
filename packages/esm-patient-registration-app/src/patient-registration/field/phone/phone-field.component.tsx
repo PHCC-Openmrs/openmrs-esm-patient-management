@@ -13,6 +13,7 @@ export function PhoneField() {
     validation: config.fieldConfigurations.phone.validation,
     showHeading: false,
     hideOptionalLabel: true,
+    maxLength: 10,
   };
   return <PersonAttributeField fieldDefinition={fieldDefinition} />;
 }

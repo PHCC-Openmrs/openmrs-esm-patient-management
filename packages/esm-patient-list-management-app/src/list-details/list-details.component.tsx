@@ -21,6 +21,7 @@ import styles from './list-details.scss';
 interface ListDetails {
   name: string;
   identifier: string;
+  nationalId?: string | null;
   sex: string;
   startDate: string;
   uuid: string;
@@ -51,6 +52,10 @@ const ListDetails = () => {
           ? listMembers?.map((member) => ({
               name: member?.patient?.person?.display,
               identifier: member?.patient?.identifiers[0]?.identifier ?? null,
+              nationalId:
+                member?.patient?.identifiers?.find(
+                  (identifier) => identifier?.identifierType?.display === 'National ID',
+                )?.identifier ?? null,
               sex: member?.patient?.person?.gender,
               startDate: member?.startDate ? formatDate(parseDate(member.startDate)) : null,
               uuid: `${member?.patient?.uuid}`,
@@ -77,6 +82,10 @@ const ListDetails = () => {
       {
         key: 'identifier',
         header: t('identifier', 'Identifier'),
+      },
+      {
+        key: 'nationalId',
+        header: t('nationalId', 'National ID'),
       },
       {
         key: 'sex',

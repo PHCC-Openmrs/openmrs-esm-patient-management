@@ -124,8 +124,8 @@ export function getValidationSchema(
               )
               .test(
                 'national-id-min-length',
-                t('nationalIdMinLength', 'National ID must be at least 9 digits'),
-                (value) => !value || value.replace(/\D/g, '').length >= 9,
+                t('nationalIdMinLength', 'National ID must be exactly 9 digits'),
+                (value) => !value || value.replace(/\D/g, '').length === 9,
               )
               .test(
                 'luhn-check',

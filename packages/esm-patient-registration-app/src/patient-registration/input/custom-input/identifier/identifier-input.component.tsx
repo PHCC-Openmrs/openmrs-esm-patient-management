@@ -125,6 +125,7 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
               required={required}
               invalid={errors[name] && touched[name]}
               invalidText={errors[name] && t(errors[name])}
+              maxLength={identifierName === 'National ID' ? 9 : undefined}
               {...field}
             />
           )}

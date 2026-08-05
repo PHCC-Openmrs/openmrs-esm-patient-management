@@ -17,6 +17,7 @@ export interface FieldDefinition {
   allowPastDates?: boolean;
   showHeading: boolean;
   hideOptionalLabel?: boolean;
+  maxLength?: number;
   validation?: {
     required: boolean;
     matches?: string;

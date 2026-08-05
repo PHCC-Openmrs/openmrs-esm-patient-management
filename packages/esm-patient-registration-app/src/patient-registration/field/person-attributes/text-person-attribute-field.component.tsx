@@ -13,6 +13,7 @@ export interface TextPersonAttributeFieldProps {
   label?: string;
   required?: boolean;
   hideOptionalLabel?: boolean;
+  maxLength?: number;
 }
 
 export function TextPersonAttributeField({
@@ -22,6 +23,7 @@ export function TextPersonAttributeField({
   label,
   required,
   hideOptionalLabel,
+  maxLength,
 }: TextPersonAttributeFieldProps) {
   const { t } = useTranslation();
 
@@ -52,6 +54,7 @@ export function TextPersonAttributeField({
               {...field}
               required={required}
               hideOptionalLabel={hideOptionalLabel}
+              maxLength={maxLength}
             />
           );
         }}
