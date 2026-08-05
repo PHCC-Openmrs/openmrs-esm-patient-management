@@ -298,7 +298,7 @@ describe('Field', () => {
       ResourcesContextProvider,
       mockResourcesContextValue,
     );
-    expect(screen.getByText('Identifiers')).toBeInTheDocument();
+    expect(screen.getByTestId('identifier-label')).toBeInTheDocument();
   });
 
   it('should return null and report an error for an invalid field name', () => {

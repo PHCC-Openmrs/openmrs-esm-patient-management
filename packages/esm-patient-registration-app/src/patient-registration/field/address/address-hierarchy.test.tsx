@@ -178,7 +178,8 @@ describe('Address hierarchy', () => {
 
       const allFields = mockedAddressTemplate.lines.flat().filter(({ isToken }) => isToken === 'IS_ADDR_TOKEN');
       allFields.forEach((field) => {
-        const textFieldInput = screen.getByLabelText(`${field.displayText} (optional)`);
+        const expectedLabel = field.codeName === 'address1' ? field.displayText : `${field.displayText} (optional)`;
+        const textFieldInput = screen.getByLabelText(expectedLabel);
         expect(textFieldInput).toBeInTheDocument();
       });
     });
@@ -213,7 +214,8 @@ describe('Address hierarchy', () => {
           orderMap[existingField1.codeName ?? 0] - orderMap[existingField2.codeName ?? 0],
       );
       allFields.forEach((field) => {
-        const textFieldInput = screen.getByLabelText(`${field.displayText} (optional)`);
+        const expectedLabel = field.codeName === 'address1' ? field.displayText : `${field.displayText} (optional)`;
+        const textFieldInput = screen.getByLabelText(expectedLabel);
         expect(textFieldInput).toBeInTheDocument();
       });
     });
