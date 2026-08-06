@@ -74,7 +74,7 @@
   "male": "Male",
   "middleNameLabelText": "Middle Name",
   "nationalIdMinLength": "National ID must be exactly 9 digits",
-  "nationalIdStartsWith": "National ID must start with 4, 5, or 7",
+  "nationalIdStartsWith": "National ID must start with 4, 7, 8 or 9",
   "negativeMonths": "Estimated months cannot be negative",
   "negativeYears": "Estimated years cannot be negative",
   "no": "No",
