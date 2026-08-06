@@ -119,8 +119,8 @@ export function getValidationSchema(
             schema = schema
               .test(
                 'national-id-starts-with',
-                t('nationalIdStartsWith', 'National ID must start with 4, 5, or 7'),
-                (value) => !value || /^[457]/.test(value),
+                t('nationalIdStartsWith', 'National ID must start with 4, 7, 8 or 9'),
+                (value) => !value || /^[4789]/.test(value),
               )
               .test(
                 'national-id-min-length',
