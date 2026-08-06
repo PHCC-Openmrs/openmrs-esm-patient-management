@@ -14,7 +14,7 @@ export function useOrderedAddressHierarchyLevels() {
 
   const results = useMemo(
     () => ({
-      orderedFields: data?.data?.map((field) => field.addressField),
+      orderedFields: data?.data?.map((field) => field.addressField) ?? [],
       isLoadingFieldOrder: isLoading,
       errorFetchingFieldOrder: error,
     }),
