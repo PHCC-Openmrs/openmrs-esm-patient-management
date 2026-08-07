@@ -1,4 +1,5 @@
 {
+  "Address": "Full Address",
   "addPatient": "Add patient",
   "addRelationshipButtonText": "Add Relationship",
   "addressHeader": "Address",
@@ -56,7 +57,7 @@
   "female": "Female",
   "fieldsWithErrors": "The following fields have errors: ",
   "fullNameLabelText": "Full Name",
-  "genderLabelText": "Sex",
+  "genderLabelText": "Choose one",
   "genderRequired": "Gender is required",
   "genderUnspecified": "Gender unspecified",
   "givenNameLabelText": "First Name",

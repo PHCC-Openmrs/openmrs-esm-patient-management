@@ -11,6 +11,7 @@ export interface FieldDefinition {
   id: string;
   type: string;
   label?: string;
+  selectLabel?: string;
   uuid: string;
   placeholder?: string;
   allowFutureDates?: boolean;
@@ -160,6 +161,7 @@ export const esmPatientRegistrationSchema = {
         type: 'person attribute',
         uuid: 'c980ebc9-ce83-4954-9249-96cad71b8b1e',
         label: 'Patient Status',
+        selectLabel: 'Patient Status(resident/idp)',
         showHeading: true,
         customConceptAnswers: [
           { uuid: '7ff64150-c85a-427e-898a-c213d44d8a52', label: 'Resident' },
@@ -194,6 +196,12 @@ export const esmPatientRegistrationSchema = {
         _type: Type.String,
         _default: '',
         _description: 'The label of the input. By default, uses the metadata `display` attribute.',
+      },
+      selectLabel: {
+        _type: Type.String,
+        _default: '',
+        _description:
+          'For coded questions only. Overrides the label shown on the dropdown itself, without affecting the heading set by `label`. Falls back to `label` if not set.',
       },
       placeholder: {
         _type: Type.String,
