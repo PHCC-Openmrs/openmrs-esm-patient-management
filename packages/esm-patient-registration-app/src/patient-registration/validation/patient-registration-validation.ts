@@ -14,6 +14,9 @@ export function getValidationSchema(
 ): ObjectSchema<any> {
   return Yup.object({
     givenName: Yup.string().required(t('givenNameRequired', 'Given name is required')),
+    middleName: config.fieldConfigurations.name.displayMiddleName
+      ? Yup.string().required(t('middleNameRequired', 'Middle name is required'))
+      : Yup.string().notRequired(),
     familyName: Yup.string().required(t('familyNameRequired', 'Family name is required')),
     additionalGivenName: Yup.string().when('addNameInLocalLanguage', {
       is: true,
