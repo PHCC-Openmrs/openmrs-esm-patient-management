@@ -16,10 +16,16 @@ import styles from './patient-queue-header.scss';
 interface PatientQueueHeaderProps {
   title?: string | JSX.Element;
   showFilters: boolean;
+  showServiceFilter?: boolean;
   actions?: React.ReactNode;
 }
 
-const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({ title, showFilters, actions }) => {
+const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({
+  title,
+  showFilters,
+  showServiceFilter = true,
+  actions,
+}) => {
   const { t } = useTranslation();
   const { queueLocations, isLoading, error } = useQueueLocations();
   const { dashboardTitle } = useConfig<ConfigObject>();
@@ -27,7 +33,7 @@ const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({ title, showFilt
   const { selectedQueueLocationName, selectedQueueLocationUuid, selectedServiceDisplay } = useServiceQueuesStore();
   const { queues } = useQueues();
   const showLocationDropdown = showFilters && queueLocations.length > 1;
-  const showServiceDropdown = showFilters && queues.length > 1;
+  const showServiceDropdown = showFilters && showServiceFilter && queues.length > 1;
 
   const serviceOptions = useMemo(() => {
     const options = queues

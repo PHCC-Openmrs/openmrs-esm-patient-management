@@ -73,14 +73,14 @@
       "order": 1
     },
     {
-      "name": "metrics-card-waiting-patients",
-      "component": "metricsCardWaitingPatients",
+      "name": "metrics-card-completed-visits",
+      "component": "metricsCardCompletedVisits",
       "slot": "service-queues-metrics-slot",
       "order": 2
     },
     {
-      "name": "metrics-card-average-wait-time",
-      "component": "metricsCardAverageWaitTime",
+      "name": "metrics-card-average-visit-duration",
+      "component": "metricsCardAverageVisitDuration",
       "slot": "service-queues-metrics-slot",
       "order": 3
     },

@@ -1,6 +1,6 @@
 import React from 'react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { getDefaultsFromConfigSchema, useConfig } from '@openmrs/esm-framework';
 import { type ConfigObject, configSchema } from './config-schema';
 import { useQueueEntries } from './hooks/useQueueEntries';
@@ -47,13 +47,14 @@ describe('Home Component', () => {
     expect(screen.getByRole('heading', { name: /patients currently in queue/i })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /show patients with status/i })).toBeInTheDocument();
     expect(screen.getByRole('search', { name: /search this list/i })).toBeInTheDocument();
-    expect(screen.getByRole('table', { name: /queue table/i })).toBeInTheDocument();
+    const queueTable = screen.getByRole('table', { name: /queue table/i });
+    expect(queueTable).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /clear queue entries/i })).not.toBeInTheDocument();
 
-    const expectedColumnHeaders = [/name/, /priority/, /coming from/, /status/, /queue/, /wait time/, /actions/];
+    const expectedColumnHeaders = [/name/, /priority/, /coming from/, /status/, /queue/, /wait time/, /programs/];
 
     expectedColumnHeaders.forEach((header) => {
-      expect(screen.getByRole('columnheader', { name: new RegExp(header, 'i') })).toBeInTheDocument();
+      expect(within(queueTable).getByRole('columnheader', { name: new RegExp(header, 'i') })).toBeInTheDocument();
     });
   });
 });

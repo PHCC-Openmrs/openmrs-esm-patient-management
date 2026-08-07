@@ -2,6 +2,8 @@ import { defineConfigSchema, getAsyncLifecycle, getSyncLifecycle, registerBreadc
 import { configSchema } from './config-schema';
 import { createDashboardLink } from './createDashboardLink';
 import { dashboardMeta } from './dashboard.meta';
+import { completeActiveQueueEntryForPatient } from './queue-entry-completion';
+import { autoEnqueuePatientForVisit } from './auto-enqueue-visit';
 
 export const importTranslation = require.context('../translations', false, /.json$/, 'lazy');
 
@@ -53,13 +55,13 @@ export const metricsCardCheckedInPatients = getAsyncLifecycle(
   options,
 );
 
-export const metricsCardWaitingPatients = getAsyncLifecycle(
-  () => import('./metrics/metrics-cards/waiting-patients.extension'),
+export const metricsCardCompletedVisits = getAsyncLifecycle(
+  () => import('./metrics/metrics-cards/completed-visits.extension'),
   options,
 );
 
-export const metricsCardAverageWaitTime = getAsyncLifecycle(
-  () => import('./metrics/metrics-cards/average-wait-time.extension'),
+export const metricsCardAverageVisitDuration = getAsyncLifecycle(
+  () => import('./metrics/metrics-cards/average-visit-duration.extension'),
   options,
 );
 
@@ -187,4 +189,12 @@ export function startupApp() {
   registerBreadcrumbs([]);
 
   defineConfigSchema(moduleName, configSchema);
+
+  window.addEventListener('visit-ended', (event: CustomEvent<{ patientUuid: string; visitUuid: string }>) => {
+    completeActiveQueueEntryForPatient(event.detail?.patientUuid);
+  });
+
+  window.addEventListener('visit-started', (event: CustomEvent<{ patientUuid: string; visitUuid: string }>) => {
+    autoEnqueuePatientForVisit(event.detail?.patientUuid, event.detail?.visitUuid);
+  });
 }

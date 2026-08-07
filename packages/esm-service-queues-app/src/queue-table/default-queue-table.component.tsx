@@ -6,7 +6,6 @@ import { updateSelectedQueueStatus, useServiceQueuesStore } from '../store/store
 import { useColumns } from './cells/columns.resource';
 import { useQueueEntries } from '../hooks/useQueueEntries';
 import useQueueStatuses from '../hooks/useQueueStatuses';
-import AddPatientToQueueButton from './components/add-patient-to-queue-button.component';
 import ClearQueueEntries from '../modals/clear-queue-entries-modal/clear-queue-entries.component';
 import QueueTable from './queue-table.component';
 import QueueTableExpandedRow from './queue-table-expanded-row.component';
@@ -22,9 +21,6 @@ function DefaultQueueTable() {
         <div className={styles.headerContainer}>
           <div className={!isDesktop(layout) ? styles.tabletHeading : styles.desktopHeading}>
             <h2>{t('patientsCurrentlyInQueue', 'Patients currently in queue')}</h2>
-          </div>
-          <div className={styles.headerButtons}>
-            <AddPatientToQueueButton />
           </div>
         </div>
         <QueueTableSection />

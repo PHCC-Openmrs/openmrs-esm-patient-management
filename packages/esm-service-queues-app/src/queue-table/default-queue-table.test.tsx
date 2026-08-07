@@ -100,7 +100,7 @@ describe('DefaultQueueTable', () => {
       /status/i,
       /^queue$/i,
       /wait time/i,
-      /actions/i,
+      /programs/i,
     ];
     expectedColumnHeaders.forEach((header) => {
       expect(
