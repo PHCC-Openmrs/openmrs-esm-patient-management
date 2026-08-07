@@ -89,7 +89,7 @@ describe('QueueTable', () => {
       /status/i,
       /queue/i,
       /wait time/i,
-      /programs/i,
+      /service type/i,
       /actions/i,
     ];
     const headers = within(headerRow).getAllByRole('columnheader');
@@ -154,7 +154,7 @@ describe('QueueTable', () => {
       /status/i,
       /queue/i,
       /wait time/i,
-      /programs/i,
+      /service type/i,
       /actions/i,
     ];
     const headers = within(headerRow).getAllByRole('columnheader');

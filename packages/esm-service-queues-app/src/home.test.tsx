@@ -51,7 +51,7 @@ describe('Home Component', () => {
     expect(queueTable).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /clear queue entries/i })).not.toBeInTheDocument();
 
-    const expectedColumnHeaders = [/name/, /priority/, /coming from/, /status/, /queue/, /wait time/, /programs/];
+    const expectedColumnHeaders = [/name/, /priority/, /coming from/, /status/, /queue/, /wait time/, /service type/];
 
     expectedColumnHeaders.forEach((header) => {
       expect(within(queueTable).getByRole('columnheader', { name: new RegExp(header, 'i') })).toBeInTheDocument();
