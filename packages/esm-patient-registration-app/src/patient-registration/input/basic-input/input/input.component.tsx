@@ -17,6 +17,7 @@ export const Input: React.FC<InputProps> = ({ checkWarning, hideOptionalLabel, .
   /*
     Do not remove these comments
     t('givenNameRequired')
+    t('middleNameRequired')
     t('familyNameRequired')
     t('genderUnspecified')
     t('genderRequired')
