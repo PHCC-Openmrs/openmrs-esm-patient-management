@@ -38,6 +38,7 @@
   "errorRemovingPatientFromList": "Failed to remove patient from list",
   "errorUpdatingList": "Error updating list",
   "filterByLocation": "Filter by location",
+  "governorate": "Governorate",
   "identifier": "Identifier",
   "items": "items",
   "itemsDisplayed": "{{numberOfItemsDisplayed}} items",

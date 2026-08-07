@@ -52,6 +52,7 @@ const AllPatientsTable: React.FC = () => {
       { key: 'phoneNumber', header: t('phoneNumber', 'Phone Number') },
       { key: 'sex', header: t('sex', 'Sex') },
       { key: 'age', header: t('age', 'Age') },
+      { key: 'governorate', header: t('governorate', 'Governorate') },
     ],
     [t],
   );
@@ -70,6 +71,7 @@ const AllPatientsTable: React.FC = () => {
         phoneNumber: patient.phoneNumber,
         sex: patient.sex,
         age: patient.birthDate !== '--' ? age(patient.birthDate) : '--',
+        governorate: patient.governorate,
       })),
     [patients],
   );
@@ -81,7 +83,7 @@ const AllPatientsTable: React.FC = () => {
           data-testid="data-table-skeleton"
           className={styles.dataTableSkeleton}
           rowCount={5}
-          columnCount={6}
+          columnCount={7}
           zebra
         />
       </div>

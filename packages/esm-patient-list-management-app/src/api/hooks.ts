@@ -165,6 +165,7 @@ export interface SimplePatient {
   birthDate: string;
   nationalId: string;
   phoneNumber: string;
+  governorate: string;
 }
 
 interface PatientContactDetails {
@@ -227,6 +228,10 @@ export function useAllPatients(startIndex: number = 0, pageSize: number = 10, se
           identifier: patient.identifier?.[0]?.value ?? '--',
           sex: patient.gender ?? '--',
           birthDate: patient.birthDate ?? '--',
+          // The preferred address is mapped to the "home" use; fall back to the first address
+          // for patients whose preferred address wasn't marked as such.
+          governorate:
+            (patient.address?.find((address) => address.use === 'home') ?? patient.address?.[0])?.state ?? '--',
         })),
     [data],
   );
