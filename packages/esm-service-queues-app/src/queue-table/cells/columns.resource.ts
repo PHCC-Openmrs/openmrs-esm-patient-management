@@ -117,7 +117,7 @@ function getColumnFromDefinition(t: TFunction, columnDef: ColumnDefinition): Que
       return queueTableStatusColumn(id, translatedHeader ?? t('status', 'Status'), columnDef.config);
     }
     case 'programs': {
-      return queueTableProgramsColumn(id, translatedHeader ?? t('programs', 'Programs'));
+      return queueTableProgramsColumn(id, translatedHeader ?? t('serviceType', 'Service type'));
     }
     case 'coming-from': {
       return queueTableComingFromColumn(id, translatedHeader ?? t('comingFrom', 'Coming from'));
