@@ -37,6 +37,7 @@ function OverdueVisits() {
     { key: 'name', header: t('name', 'Name') },
     { key: 'visitStarted', header: t('visitStarted', 'Visit started') },
     { key: 'daysOpen', header: t('daysOpen', 'Days open') },
+    { key: 'location', header: t('location', 'Location') },
     { key: 'actions', header: t('actions', 'Actions') },
   ];
 
@@ -49,6 +50,7 @@ function OverdueVisits() {
     ),
     visitStarted: formatDatetime(new Date(visit.startDatetime)),
     daysOpen: Math.max(1, dayjs().diff(dayjs(visit.startDatetime), 'day')),
+    location: visit.location?.display ?? '--',
     actions: (
       <Button
         kind="danger--tertiary"

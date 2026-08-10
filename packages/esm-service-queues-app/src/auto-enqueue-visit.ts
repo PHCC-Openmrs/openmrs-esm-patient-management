@@ -51,7 +51,7 @@ export async function autoEnqueuePatientForVisit(patientUuid: string, visitUuid:
       defaultQueue.uuid,
       patientUuid,
       concepts.defaultPriorityConceptUuid,
-      concepts.defaultStatusConceptUuid,
+      concepts.defaultTransitionStatus,
       0,
       visitData?.location?.uuid,
       visitQueueNumberAttributeUuid,

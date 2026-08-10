@@ -73,8 +73,9 @@ describe('DefaultQueueTable', () => {
       isLoading: false,
       error: null,
     });
+    const todaysQueueEntries = mockQueueEntries.map((entry) => ({ ...entry, startedAt: new Date().toISOString() }));
     mockUseQueueEntries.mockReturnValue({
-      queueEntries: mockQueueEntries,
+      queueEntries: todaysQueueEntries,
       error: undefined,
       isLoading: false,
       isValidating: false,
@@ -93,15 +94,7 @@ describe('DefaultQueueTable', () => {
     expect(john).toBeInTheDocument();
     expect(john).toHaveAttribute('href', 'someUrl');
 
-    const expectedColumnHeaders = [
-      /name/i,
-      /priority/i,
-      /coming from/i,
-      /status/i,
-      /^queue$/i,
-      /wait time/i,
-      /service type/i,
-    ];
+    const expectedColumnHeaders = [/name/i, /status/i, /location/i, /wait time/i, /service type/i];
     expectedColumnHeaders.forEach((header) => {
       expect(
         screen.getByRole('columnheader', {

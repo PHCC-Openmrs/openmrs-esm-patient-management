@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DataTableSkeleton, Dropdown, Layer, TableToolbarSearch } from '@carbon/react';
 import { useTranslation } from 'react-i18next';
-import { isDesktop, showSnackbar, useLayoutType } from '@openmrs/esm-framework';
+import dayjs from 'dayjs';
+import { isDesktop, showSnackbar, useConfig, useLayoutType } from '@openmrs/esm-framework';
+import { type ConfigObject } from '../config-schema';
 import { updateSelectedQueueStatus, useServiceQueuesStore } from '../store/store';
 import { useColumns } from './cells/columns.resource';
 import { useQueueEntries } from '../hooks/useQueueEntries';
@@ -38,11 +40,13 @@ function QueueTableSection() {
   const searchCriteria = useMemo(() => {
     return {
       service: selectedServiceUuid,
-      location: selectedQueueLocationUuid,
-      isEnded: false,
+      // The backend auto-ends a queue entry whenever its visit ends, regardless of status. Excluding
+      // ended entries only makes sense for the unfiltered "Any" view; a specific status filter (e.g.
+      // "Finished Service") should still surface today's matches even though the backend marked them ended.
+      isEnded: selectedQueueStatusUuid ? undefined : false,
       status: selectedQueueStatusUuid,
     };
-  }, [selectedServiceUuid, selectedQueueLocationUuid, selectedQueueStatusUuid]);
+  }, [selectedServiceUuid, selectedQueueStatusUuid]);
 
   const { queueEntries, isLoading, error, isValidating } = useQueueEntries(searchCriteria);
 
@@ -69,13 +73,22 @@ function QueueTableSection() {
 
   const filteredQueueEntries = useMemo(() => {
     const searchTermLowercase = searchTerm.toLowerCase();
-    return queueEntries?.filter((queueEntry) => {
-      return columns?.some((column) => {
-        const columnSearchTerm = column.getFilterableValue?.(queueEntry)?.toLocaleLowerCase();
-        return columnSearchTerm?.includes(searchTermLowercase);
+    return queueEntries
+      ?.filter(
+        (queueEntry) =>
+          dayjs(queueEntry.startedAt).isSame(dayjs(), 'day') ||
+          (queueEntry.endedAt && dayjs(queueEntry.endedAt).isSame(dayjs(), 'day')),
+      )
+      .filter(
+        (queueEntry) => !selectedQueueLocationUuid || queueEntry.visit?.location?.uuid === selectedQueueLocationUuid,
+      )
+      .filter((queueEntry) => {
+        return columns?.some((column) => {
+          const columnSearchTerm = column.getFilterableValue?.(queueEntry)?.toLocaleLowerCase();
+          return columnSearchTerm?.includes(searchTermLowercase);
+        });
       });
-    });
-  }, [columns, queueEntries, searchTerm]);
+  }, [columns, queueEntries, searchTerm, selectedQueueLocationUuid]);
 
   if (isLoading) {
     return <DataTableSkeleton role="progressbar" />;
@@ -116,16 +129,22 @@ function StatusDropdownFilter() {
   const { t } = useTranslation();
   const layout = useLayoutType();
   const { statuses } = useQueueStatuses();
+  const { concepts } = useConfig<ConfigObject>();
   const { selectedQueueStatusDisplay } = useServiceQueuesStore();
   const handleStatusChange = ({ selectedItem }) => {
     updateSelectedQueueStatus(selectedItem.uuid, selectedItem?.display);
   };
 
+  const filteredStatuses = useMemo(
+    () => (statuses ?? []).filter((status) => status?.uuid !== concepts.defaultStatusConceptUuid),
+    [statuses, concepts.defaultStatusConceptUuid],
+  );
+
   return (
     <div className={styles.filterContainer}>
       <Dropdown
         id="statusFilter"
-        items={[{ display: `${t('any', 'Any')}` }, ...(statuses ?? [])]}
+        items={[{ display: `${t('any', 'Any')}` }, ...filteredStatuses]}
         itemToString={(item) => (item ? item.display : '')}
         label={selectedQueueStatusDisplay ?? t('all', 'All')}
         onChange={handleStatusChange}

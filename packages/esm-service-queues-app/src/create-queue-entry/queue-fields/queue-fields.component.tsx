@@ -56,7 +56,7 @@ const QueueFields = React.memo(({ setOnSubmit, defaultInitialServiceQueue }: Que
     [queueLocations],
   );
   const {
-    concepts: { defaultStatusConceptUuid, defaultPriorityConceptUuid, emergencyPriorityConceptUuid },
+    concepts: { defaultTransitionStatus, defaultPriorityConceptUuid, emergencyPriorityConceptUuid },
     visitQueueNumberAttributeUuid,
   } = useConfig<ConfigObject>();
   const { selectedServiceUuid } = useServiceQueuesStore();
@@ -107,7 +107,7 @@ const QueueFields = React.memo(({ setOnSubmit, defaultInitialServiceQueue }: Que
         formValues.queueService,
         visit.patient.uuid,
         formValues.priority,
-        defaultStatusConceptUuid,
+        defaultTransitionStatus,
         sortWeight,
         formValues.queueLocation,
         visitQueueNumberAttributeUuid,
@@ -143,7 +143,7 @@ const QueueFields = React.memo(({ setOnSubmit, defaultInitialServiceQueue }: Que
           throw error;
         });
     },
-    [defaultStatusConceptUuid, mutateQueueEntries, sortWeight, t, trigger, visitQueueNumberAttributeUuid, getValues],
+    [defaultTransitionStatus, mutateQueueEntries, sortWeight, t, trigger, visitQueueNumberAttributeUuid, getValues],
   );
 
   useEffect(() => {

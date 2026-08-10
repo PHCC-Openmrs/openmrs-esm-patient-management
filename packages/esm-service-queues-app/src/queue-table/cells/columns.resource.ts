@@ -12,6 +12,7 @@ import {
 import { type QueueTableColumn } from '../../types';
 import { queueTableComingFromColumn } from './queue-table-coming-from-cell.component';
 import { queueTableExtensionColumn } from './queue-table-extension-cell.component';
+import { queueTableLocationColumn } from './queue-table-location-cell.component';
 import { queueTableNameColumn } from './queue-table-name-cell.component';
 import { queueTablePatientAgeColumn } from './queue-table-patient-age-cell.component';
 import { queueTablePatientIdentifierColumn } from './queue-table-patient-identifier-cell.component';
@@ -124,6 +125,9 @@ function getColumnFromDefinition(t: TFunction, columnDef: ColumnDefinition): Que
     }
     case 'queue': {
       return queueTableQueueNameColumn(id, translatedHeader ?? t('queue', 'Queue'));
+    }
+    case 'location': {
+      return queueTableLocationColumn(id, translatedHeader ?? t('location', 'Location'));
     }
     case 'wait-time': {
       return queueTableWaitTimeColumn(id, translatedHeader ?? t('waitTime', 'Wait time'));

@@ -8,6 +8,7 @@ const columnTypes = [
   'actions',
   'coming-from',
   'extension',
+  'location',
   'patient-age',
   'patient-identifier',
   'patient-name',
@@ -89,7 +90,7 @@ export const defaultColumnConfig: ColumnConfig = {
 };
 
 export const defaultQueueTable: TableDefinitions = {
-  columns: ['patient-name', 'coming-from', 'priority', 'status', 'queue', 'wait-time', 'programs'],
+  columns: ['patient-name', 'status', 'location', 'wait-time', 'programs'],
   appliedTo: [{ queue: '', status: '' }],
 };
 
@@ -173,6 +174,11 @@ export const configSchema = {
       _type: Type.ConceptUuid,
       _default: 'ca7494ae-437f-4fd0-8aae-b88b9a2ba47d',
       _description: 'The UUID of the default status for attending a service in the queues eg In Service.',
+    },
+    defaultFinishedServiceStatus: {
+      _type: Type.ConceptUuid,
+      _default: 'b559fb77-4e1e-4285-b9b7-1d03e0ba983f',
+      _description: 'The UUID of the status set on a queue entry when its visit ends eg Finished Service.',
     },
     systolicBloodPressureUuid: {
       _type: Type.ConceptUuid,
@@ -502,6 +508,7 @@ export interface ConfigObject {
     defaultPriorityConceptUuid: string;
     defaultStatusConceptUuid: string;
     defaultTransitionStatus: string;
+    defaultFinishedServiceStatus: string;
     diastolicBloodPressureUuid: string;
     emergencyPriorityConceptUuid: string;
     generalPatientNoteConceptUuid: string;

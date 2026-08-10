@@ -397,7 +397,7 @@ export interface QueueEntrySearchCriteria {
   location?: Array<string> | string;
   service?: Array<string> | string;
   status?: Array<string> | string;
-  isEnded: boolean;
+  isEnded?: boolean;
   patient?: string;
 }
 
