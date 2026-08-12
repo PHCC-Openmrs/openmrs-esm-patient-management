@@ -144,7 +144,7 @@ function StatusDropdownFilter() {
     <div className={styles.filterContainer}>
       <Dropdown
         id="statusFilter"
-        items={[{ display: `${t('any', 'Any')}` }, ...filteredStatuses]}
+        items={filteredStatuses}
         itemToString={(item) => (item ? item.display : '')}
         label={selectedQueueStatusDisplay ?? t('all', 'All')}
         onChange={handleStatusChange}
