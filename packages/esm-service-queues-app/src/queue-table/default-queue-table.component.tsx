@@ -7,6 +7,7 @@ import { type ConfigObject } from '../config-schema';
 import { updateSelectedQueueStatus, useServiceQueuesStore } from '../store/store';
 import { useColumns } from './cells/columns.resource';
 import { useQueueEntries } from '../hooks/useQueueEntries';
+import { useActiveProgramsForPatients } from '../hooks/usePatientPrograms';
 import useQueueStatuses from '../hooks/useQueueStatuses';
 import ClearQueueEntries from '../modals/clear-queue-entries-modal/clear-queue-entries.component';
 import QueueTable from './queue-table.component';
@@ -34,7 +35,8 @@ function DefaultQueueTable() {
 function QueueTableSection() {
   const { t } = useTranslation();
   const layout = useLayoutType();
-  const { selectedServiceUuid, selectedQueueLocationUuid, selectedQueueStatusUuid } = useServiceQueuesStore();
+  const { selectedServiceUuid, selectedQueueLocationUuid, selectedQueueStatusUuid, selectedProgramUuid } =
+    useServiceQueuesStore();
   const [searchTerm, setSearchTerm] = useState('');
 
   const searchCriteria = useMemo(() => {
@@ -49,6 +51,14 @@ function QueueTableSection() {
   }, [selectedServiceUuid, selectedQueueStatusUuid]);
 
   const { queueEntries, isLoading, error, isValidating } = useQueueEntries(searchCriteria);
+
+  // Program enrollment isn't part of the queue-entry representation, so it can't be filtered
+  // server-side -- only fetched (and filtered) once we know which patients are on this page.
+  const patientUuidsNeedingProgramCheck = useMemo(
+    () => (selectedProgramUuid ? (queueEntries ?? []).map((entry) => entry.patient?.uuid).filter(Boolean) : []),
+    [queueEntries, selectedProgramUuid],
+  );
+  const { programsByPatientUuid } = useActiveProgramsForPatients(patientUuidsNeedingProgramCheck);
 
   useEffect(() => {
     if (error?.message) {
@@ -83,12 +93,19 @@ function QueueTableSection() {
         (queueEntry) => !selectedQueueLocationUuid || queueEntry.visit?.location?.uuid === selectedQueueLocationUuid,
       )
       .filter((queueEntry) => {
+        if (!selectedProgramUuid) {
+          return true;
+        }
+        const patientPrograms = programsByPatientUuid[queueEntry.patient?.uuid] ?? [];
+        return patientPrograms.some((enrollment) => enrollment.program?.uuid === selectedProgramUuid);
+      })
+      .filter((queueEntry) => {
         return columns?.some((column) => {
           const columnSearchTerm = column.getFilterableValue?.(queueEntry)?.toLocaleLowerCase();
           return columnSearchTerm?.includes(searchTermLowercase);
         });
       });
-  }, [columns, queueEntries, searchTerm, selectedQueueLocationUuid]);
+  }, [columns, queueEntries, searchTerm, selectedQueueLocationUuid, selectedProgramUuid, programsByPatientUuid]);
 
   if (isLoading) {
     return <DataTableSkeleton role="progressbar" />;

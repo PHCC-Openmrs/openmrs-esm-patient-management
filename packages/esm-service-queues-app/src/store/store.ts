@@ -17,6 +17,8 @@ export interface ServiceQueuesState {
   selectedQueueLocationUuid?: string;
   selectedServiceUuid?: string;
   selectedServiceDisplay?: string;
+  selectedProgramUuid?: string;
+  selectedProgramDisplay?: string;
   selectedQueueStatusUuid?: string;
   selectedQueueStatusDisplay: string;
 }
@@ -26,6 +28,8 @@ const initialServiceQueuesState: ServiceQueuesState = {
   selectedQueueLocationUuid: getValueFromSessionStorage('queueLocationUuid'),
   selectedServiceUuid: getValueFromSessionStorage('queueServiceUuid'),
   selectedServiceDisplay: getValueFromSessionStorage('queueServiceDisplay'),
+  selectedProgramUuid: getValueFromSessionStorage('queueProgramUuid'),
+  selectedProgramDisplay: getValueFromSessionStorage('queueProgramDisplay'),
   selectedQueueStatusUuid: getValueFromSessionStorage('queueStatusUuid'),
   selectedQueueStatusDisplay: getValueFromSessionStorage('queueStatusDisplay'),
 };
@@ -38,6 +42,15 @@ export const updateSelectedService = (currentServiceUuid: string, currentService
   serviceQueuesStore.setState({
     selectedServiceUuid: currentServiceUuid,
     selectedServiceDisplay: currentServiceDisplay,
+  });
+};
+
+export const updateSelectedProgram = (currentProgramUuid: string, currentProgramDisplay: string) => {
+  updateValueInSessionStorage('queueProgramUuid', currentProgramUuid);
+  updateValueInSessionStorage('queueProgramDisplay', currentProgramDisplay);
+  serviceQueuesStore.setState({
+    selectedProgramUuid: currentProgramUuid,
+    selectedProgramDisplay: currentProgramDisplay,
   });
 };
 

@@ -7,9 +7,11 @@ import {
   updateSelectedQueueLocationUuid,
   updateSelectedQueueLocationName,
   updateSelectedService,
+  updateSelectedProgram,
   useServiceQueuesStore,
 } from '../store/store';
 import { useQueues } from '../hooks/useQueues';
+import { usePrograms } from '../hooks/usePatientPrograms';
 import type { ConfigObject } from '../config-schema';
 import styles from './patient-queue-header.scss';
 
@@ -17,6 +19,7 @@ interface PatientQueueHeaderProps {
   title?: string | JSX.Element;
   showFilters: boolean;
   showServiceFilter?: boolean;
+  showProgramFilter?: boolean;
   actions?: React.ReactNode;
 }
 
@@ -24,16 +27,20 @@ const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({
   title,
   showFilters,
   showServiceFilter = true,
+  showProgramFilter = false,
   actions,
 }) => {
   const { t } = useTranslation();
   const { queueLocations, isLoading, error } = useQueueLocations();
   const { dashboardTitle } = useConfig<ConfigObject>();
   const userSession = useSession();
-  const { selectedQueueLocationName, selectedQueueLocationUuid, selectedServiceDisplay } = useServiceQueuesStore();
+  const { selectedQueueLocationName, selectedQueueLocationUuid, selectedServiceDisplay, selectedProgramDisplay } =
+    useServiceQueuesStore();
   const { queues } = useQueues();
+  const { programs } = usePrograms();
   const showLocationDropdown = showFilters && queueLocations.length > 1;
   const showServiceDropdown = showFilters && showServiceFilter && queues.length > 1;
+  const showProgramDropdown = showFilters && showProgramFilter && programs.length > 1;
 
   const serviceOptions = useMemo(() => {
     const options = queues
@@ -46,6 +53,11 @@ const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({
       }, []);
     return options.length !== 1 ? [{ id: 'all', name: t('all', 'All') }, ...options] : options;
   }, [queues, t]);
+
+  const programOptions = useMemo(() => {
+    const options = programs.map((program) => ({ id: program.uuid, name: program.name }));
+    return options.length !== 1 ? [{ id: 'all', name: t('all', 'All') }, ...options] : options;
+  }, [programs, t]);
 
   const handleQueueLocationChange = useCallback(
     ({ selectedItem }) => {
@@ -69,6 +81,20 @@ const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({
           updateSelectedService(null, t('all', 'All'));
         } else {
           updateSelectedService(selectedItem.id, selectedItem.name);
+        }
+      }
+    },
+    [t],
+  );
+
+  const handleProgramChange = useCallback(
+    (data: OnChangeData<{ id: string; name: string }>) => {
+      const selectedItem = data.selectedItem;
+      if (selectedItem) {
+        if (selectedItem.id === 'all') {
+          updateSelectedProgram(null, t('all', 'All'));
+        } else {
+          updateSelectedProgram(selectedItem.id, selectedItem.name);
         }
       }
     },
@@ -150,6 +176,19 @@ const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({
             titleText={t('service', 'Service')}
             type="inline"
             onChange={handleServiceChange}
+          />
+        )}
+        {showProgramDropdown && (
+          <Dropdown
+            aria-label={t('selectServiceType', 'Select a service type')}
+            className={styles.dropdown}
+            id="programDropdown"
+            label={selectedProgramDisplay ?? t('all', 'All')}
+            items={programOptions}
+            itemToString={(item) => item?.name}
+            titleText={t('serviceType', 'Service type')}
+            type="inline"
+            onChange={handleProgramChange}
           />
         )}
         {actions}
