@@ -6,6 +6,7 @@ import { type QueueTableColumnFunction, type QueueTableCellComponentProps, type 
 import { type ConfigObject, type ActionsColumnConfig, type QueueEntryAction } from '../../config-schema';
 import { mapVisitQueueEntryProperties, serveQueueEntry } from '../../service-queues.resource';
 import { useMutateQueueEntries } from '../../hooks/useQueueEntries';
+import { getQueueFlowRule } from '../../queue-flow';
 import styles from './queue-table-action-cell.scss';
 
 type ActionProps = {
@@ -21,6 +22,7 @@ function useActionPropsByKey() {
     callingStatus,
     concepts: { defaultStatusConceptUuid },
     visitQueueNumberAttributeUuid,
+    queueFlow,
   } = useConfig<ConfigObject>();
   const { mutateQueueEntries } = useMutateQueueEntries();
 
@@ -131,8 +133,23 @@ function useActionPropsByKey() {
           return queueEntry.previousQueueEntry !== null;
         },
       },
+      'auto-assign': {
+        // t('sendPatientAction', 'Send patient'),
+        label: 'sendPatientAction',
+        text: 'Send patient',
+        onClick: (queueEntry: QueueEntry) => {
+          const dispose = showModal('queue-flow-transition-modal', {
+            closeModal: () => dispose(),
+            queueEntry,
+            size: 'sm',
+          });
+        },
+        showIf: (queueEntry: QueueEntry) => {
+          return getQueueFlowRule(queueFlow, queueEntry.queue.uuid) != null;
+        },
+      },
     };
-  }, [callingStatus, defaultStatusConceptUuid, visitQueueNumberAttributeUuid, mutateQueueEntries]);
+  }, [callingStatus, defaultStatusConceptUuid, visitQueueNumberAttributeUuid, queueFlow, mutateQueueEntries]);
   return actionPropsByKey;
 }
 

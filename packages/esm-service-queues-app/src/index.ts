@@ -4,6 +4,7 @@ import { createDashboardLink } from './createDashboardLink';
 import { dashboardMeta } from './dashboard.meta';
 import { completeActiveQueueEntryForPatient } from './queue-entry-completion';
 import { autoEnqueuePatientForVisit } from './auto-enqueue-visit';
+import { completePharmacyQueueEntryForPatient } from './pharmacy-completion';
 
 export const importTranslation = require.context('../translations', false, /.json$/, 'lazy');
 
@@ -185,16 +186,31 @@ export const deleteQueueRoomModal = getAsyncLifecycle(() => import('./admin/moda
   moduleName,
 });
 
+export const queueFlowTransitionModal = getAsyncLifecycle(
+  () => import('./modals/queue-flow-transition/queue-flow-transition.modal'),
+  {
+    featureName: 'auto-assign patient to next queue in the configured flow',
+    moduleName,
+  },
+);
+
 export function startupApp() {
   registerBreadcrumbs([]);
 
   defineConfigSchema(moduleName, configSchema);
 
   window.addEventListener('visit-ended', (event: CustomEvent<{ patientUuid: string; visitUuid: string }>) => {
-    completeActiveQueueEntryForPatient(event.detail?.patientUuid);
+    completeActiveQueueEntryForPatient(event.detail?.visitUuid);
   });
 
   window.addEventListener('visit-started', (event: CustomEvent<{ patientUuid: string; visitUuid: string }>) => {
     autoEnqueuePatientForVisit(event.detail?.patientUuid, event.detail?.visitUuid);
   });
+
+  window.addEventListener(
+    'pharmacy-fulfillment-completed',
+    (event: CustomEvent<{ patientUuid: string; encounterUuid: string }>) => {
+      completePharmacyQueueEntryForPatient(event.detail?.patientUuid);
+    },
+  );
 }

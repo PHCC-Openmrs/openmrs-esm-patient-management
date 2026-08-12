@@ -7,28 +7,37 @@ import { type QueueEntry } from './types';
 const moduleName = '@openmrs/esm-service-queues-app';
 
 /**
- * Marks a patient's active queue entry (if any) as "Finished Service" when their visit ends.
- * The entry stays in the "Patients currently in queue" table (filterable by status) until
- * staff clears it via the "Clear queue entries" action.
+ * Marks the last queue entry of a visit as "Finished Service" when that visit ends.
+ *
+ * Looked up by `visit`, not by `patient` + `isEnded=false`: the `queue` backend module's own
+ * VisitWithQueueEntriesSaveHandler closes any still-open queue entry for a visit synchronously,
+ * as part of the same request that stops the visit - before this `visit-ended` event listener
+ * ever runs. So by the time we'd query `isEnded=false`, the entry is already ended and that
+ * query finds nothing. Fetching by `visit` instead returns the whole chain of entries
+ * (ended or not) for that visit; the most recently started one is the one to update - the
+ * REST API allows updating status on an already-ended entry.
  */
-export async function completeActiveQueueEntryForPatient(patientUuid: string): Promise<void> {
+export async function completeActiveQueueEntryForPatient(visitUuid: string): Promise<void> {
   try {
-    if (!patientUuid) {
+    if (!visitUuid) {
       return;
     }
 
     const { data } = await openmrsFetch<{ results: Array<QueueEntry> }>(
-      `${restBaseUrl}/queue-entry?patient=${patientUuid}&v=custom:(uuid,queue:(uuid))&isEnded=false`,
+      `${restBaseUrl}/queue-entry?visit=${visitUuid}&v=custom:(uuid,startedAt)`,
     );
-    const activeQueueEntry = data?.results?.[0];
+    const entries = data?.results ?? [];
+    const lastQueueEntry = [...entries].sort(
+      (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+    )[0];
 
-    if (!activeQueueEntry) {
+    if (!lastQueueEntry) {
       return;
     }
 
     const { concepts } = await getConfig<ConfigObject>(moduleName);
 
-    await updateQueueEntry(activeQueueEntry.uuid, {
+    await updateQueueEntry(lastQueueEntry.uuid, {
       status: { uuid: concepts.defaultFinishedServiceStatus },
     });
 
@@ -36,6 +45,6 @@ export async function completeActiveQueueEntryForPatient(patientUuid: string): P
       (key) => typeof key === 'string' && (key.includes('/queue-entry') || key.includes('/visit-queue-entry')),
     );
   } catch (error) {
-    console.error('Failed to remove queue entry after visit ended', error);
+    console.error('Failed to mark queue entry as finished after visit ended', error);
   }
 }

@@ -392,6 +392,19 @@ export interface QueueEntry {
   previousQueueEntry: QueueEntry;
 }
 
+export interface QueueOccupancy {
+  queue: Queue;
+  busyCount: number;
+  totalCount: number;
+  isBusy: boolean;
+}
+
+export interface QueueFlowRule {
+  queueUuid: string;
+  nextQueueUuids: Array<string>;
+  autoAssign: boolean;
+}
+
 export interface QueueEntrySearchCriteria {
   queue?: Array<string> | string;
   location?: Array<string> | string;

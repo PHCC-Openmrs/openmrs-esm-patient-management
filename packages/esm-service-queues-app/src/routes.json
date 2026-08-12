@@ -155,6 +155,10 @@
     {
       "name": "delete-queue-room-modal",
       "component": "deleteQueueRoomModal"
+    },
+    {
+      "name": "queue-flow-transition-modal",
+      "component": "queueFlowTransitionModal"
     }
   ],
   "workspaces2": [

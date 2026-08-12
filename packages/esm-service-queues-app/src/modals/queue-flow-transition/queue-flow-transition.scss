@@ -1,0 +1,32 @@
+@use '@carbon/layout';
+@use '@openmrs/esm-styleguide/src/vars' as *;
+
+.occupancyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.queueRow,
+.recommendedQueue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: layout.$spacing-03 layout.$spacing-04;
+  border-bottom: 1px solid $ui-03;
+}
+
+.recommendedQueue {
+  border-left: 3px solid $interactive-01;
+  font-weight: 600;
+}
+
+.queueMeta {
+  display: flex;
+  align-items: center;
+  gap: layout.$spacing-03;
+}
+
+.radioButtonGroup {
+  width: 100%;
+}

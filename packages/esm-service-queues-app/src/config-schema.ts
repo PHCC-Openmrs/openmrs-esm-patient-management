@@ -3,6 +3,7 @@ import vitalsConfigSchema, { type VitalsConfigObject } from './current-visit/vis
 import biometricsConfigSchema, {
   type BiometricsConfigObject,
 } from './current-visit/visit-details/biometrics-config-schema';
+import { type QueueFlowRule } from './types';
 
 const columnTypes = [
   'actions',
@@ -17,12 +18,22 @@ const columnTypes = [
   'queue-number',
   'queue',
   'status',
+  'visit-duration',
   'visit-start-time',
   'wait-time',
 ] as const;
 type ColumnType = (typeof columnTypes)[number];
 
-const queueEntryActions = ['move', 'call', 'edit', 'transition', 'remove', 'delete', 'undo'] as const;
+const queueEntryActions = [
+  'move',
+  'call',
+  'edit',
+  'transition',
+  'remove',
+  'delete',
+  'undo',
+  'auto-assign',
+] as const;
 export type QueueEntryAction = (typeof queueEntryActions)[number];
 
 const statusIcons = ['Group', 'InProgress'] as const;
@@ -283,10 +294,58 @@ export const configSchema = {
     _default: 'Outpatient Triage',
     _description: 'The name of the default service queue to be selected when the start visit form is opened',
   },
+  queueFlow: {
+    _type: Type.Array,
+    _default: [],
+    _description:
+      'Defines the patient journey through the queues, so the "auto-assign" queue entry action knows, for a ' +
+      'patient leaving a given queue, where they can go next and whether to pick automatically or let staff ' +
+      'choose. Each rule applies to one "from" queue. If multiple `nextQueueUuids` are given and `autoAssign` ' +
+      'is true, the least-busy one is picked automatically (ties broken by order in the list). If `autoAssign` ' +
+      'is false, staff are shown a picker restricted to just `nextQueueUuids` (not every queue in the system). ' +
+      'Queues with no rule here fall back to the generic, unrestricted "move" action.',
+    _elements: {
+      queueUuid: {
+        _type: Type.UUID,
+        _description: 'The queue this rule applies to, i.e. the queue a patient is currently in.',
+      },
+      nextQueueUuids: {
+        _type: Type.Array,
+        _default: [],
+        _description: 'The queues a patient leaving `queueUuid` is allowed to go to next.',
+        _elements: {
+          _type: Type.UUID,
+        },
+      },
+      autoAssign: {
+        _type: Type.Boolean,
+        _default: false,
+        _description:
+          'If true, automatically pick a destination from `nextQueueUuids` (least-busy first) instead of ' +
+          'showing staff a picker.',
+      },
+    },
+  },
+  occupiedStatusConceptUuid: {
+    _type: Type.ConceptUuid,
+    _default: null,
+    _description:
+      'The status concept UUID that means a queue entry is currently being attended to, e.g. In Service. Used ' +
+      'to determine how "busy" a queue is for the `queueFlow` auto-assign action. If not set, falls back to ' +
+      '`concepts.defaultTransitionStatus`.',
+  },
   drugOrderTypeUuid: {
     _type: Type.UUID,
     _default: defaultDrugOrderTypeUuid,
     _description: 'The UUID of the "Drug Order" order type, used to filter medications in the previous-visit view.',
+  },
+  pharmacyQueueName: {
+    _type: Type.String,
+    _default: 'Pharmacy',
+    _description:
+      'The name of the queue used to track patients waiting for pharmacy dispensing. When medication ' +
+      "dispensing is completed for a patient whose active queue entry is in this queue (see esm-dispensing-app's " +
+      '`pharmacy-fulfillment-completed` event), that queue entry is automatically ended.',
   },
   queueTables: {
     columnDefinitions: {
@@ -524,7 +583,10 @@ export interface ConfigObject {
     weightUuid: string;
   };
   defaultInitialServiceQueue: string;
+  queueFlow: Array<QueueFlowRule>;
+  occupiedStatusConceptUuid: string | null;
   drugOrderTypeUuid: string;
+  pharmacyQueueName: string;
   contactAttributeType: string;
   customPatientChartUrl: string;
   defaultIdentifierTypes: Array<string>;

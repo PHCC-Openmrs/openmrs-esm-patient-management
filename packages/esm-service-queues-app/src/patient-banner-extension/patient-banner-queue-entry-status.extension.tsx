@@ -1,8 +1,10 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@carbon/react';
-import { type ConfigObject, isDesktop, showModal, useConfig, useLayoutType } from '@openmrs/esm-framework';
+import { isDesktop, showModal, useConfig, useLayoutType } from '@openmrs/esm-framework';
+import { type ConfigObject } from '../config-schema';
 import { useQueueEntries } from '../hooks/useQueueEntries';
+import { getQueueFlowRule } from '../queue-flow';
 import QueuePriority from '../queue-table/components/queue-priority.component';
 import styles from './patient-banner-queue-entry-status.scss';
 
@@ -37,6 +39,8 @@ const PatientBannerQueueEntryStatusInner: React.FC<Pick<PatientBannerQueueEntryS
       return null;
     }
 
+    const hasFlowRule = getQueueFlowRule(config.queueFlow, queueEntry.queue.uuid) != null;
+
     return (
       <div className={styles.queueEntryStatusContainer}>
         <span>{queueEntry.queue.name}</span>
@@ -49,7 +53,7 @@ const PatientBannerQueueEntryStatusInner: React.FC<Pick<PatientBannerQueueEntryS
           kind="ghost"
           size={isDesktop(layout) ? 'sm' : 'lg'}
           onClick={() => {
-            const dispose = showModal('move-queue-entry-modal', {
+            const dispose = showModal(hasFlowRule ? 'queue-flow-transition-modal' : 'move-queue-entry-modal', {
               closeModal: () => dispose(),
               queueEntry,
             });

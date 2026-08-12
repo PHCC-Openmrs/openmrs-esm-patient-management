@@ -21,6 +21,7 @@ import { queueTableProgramsColumn } from './queue-table-programs-cell.component'
 import { queueTableQueueNameColumn } from './queue-table-queue-name-cell.component';
 import { queueTableStatusColumn } from './queue-table-status-cell.component';
 import { queueTableVisitAttributeQueueNumberColumn } from './queue-table-visit-attribute-queue-number-cell.component';
+import { queueTableVisitDurationColumn } from './queue-table-visit-duration-cell.component';
 import { queueTableVisitStartTimeColumn } from './queue-table-visit-start-time-cell.component';
 import { queueTableWaitTimeColumn } from './queue-table-wait-time-cell.component';
 import { queueTableActionColumn } from './queue-table-action-cell.component';
@@ -131,6 +132,9 @@ function getColumnFromDefinition(t: TFunction, columnDef: ColumnDefinition): Que
     }
     case 'wait-time': {
       return queueTableWaitTimeColumn(id, translatedHeader ?? t('waitTime', 'Wait time'));
+    }
+    case 'visit-duration': {
+      return queueTableVisitDurationColumn(id, translatedHeader ?? t('timeInVisit', 'Time in visit'));
     }
     case 'visit-start-time': {
       return queueTableVisitStartTimeColumn(id, translatedHeader ?? t('visitStartTime', 'Visit start time'));
