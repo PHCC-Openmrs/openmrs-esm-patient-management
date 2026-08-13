@@ -183,7 +183,8 @@ const AddressComponentContainer = ({ children }) => {
           <h4 className={styles.productiveHeading02Light}>{t('addressHeader', 'Address')}</h4>
           <div
             style={{
-              paddingBottom: '5%',
+              // Reduced from 5% (which produced a large, layout-width-dependent gap before the next form field)
+              paddingBottom: '0.5rem',
             }}>
             {children}
           </div>
