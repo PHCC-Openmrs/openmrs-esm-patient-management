@@ -43,6 +43,7 @@ const repShapedQueueEntry = {
   visit: {
     uuid: 'visit-uuid',
     startDatetime: '2024-01-02T00:00:00.000+0000',
+    stopDatetime: null,
     location: { uuid: 'visit-location-uuid', display: 'Deir Al-Balah PHCC' },
     attributes: [{ uuid: 'visit-attribute-uuid', value: '42', attributeType: { uuid: visitQueueNumberAttributeUuid } }],
   },

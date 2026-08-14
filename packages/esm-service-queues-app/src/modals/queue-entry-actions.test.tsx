@@ -489,7 +489,7 @@ describe('QueueEntryActionModal', () => {
   });
 });
 
-describe('QueueEntryActionModal - ComboBox behavior with many queues', () => {
+describe('QueueEntryActionModal - radio button behavior with many queues', () => {
   const defaultProps = {
     queueEntry: mockQueueEntryAlice,
     closeModal: vi.fn(),
@@ -516,57 +516,23 @@ describe('QueueEntryActionModal - ComboBox behavior with many queues', () => {
     mockUseQueues.mockReturnValue({ queues: mockQueues });
   });
 
-  it('renders a searchable ComboBox instead of radio buttons when there are more than 8 queues', () => {
+  it('renders every queue as a radio button, even with more than 8 options', () => {
     renderWithSwr(<QueueEntryActionModal {...defaultProps} />);
 
-    // Should render ComboBox for queue selection
-    expect(screen.getByRole('combobox', { name: /service location/i })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /service location/i })).not.toBeInTheDocument();
     expect(screen.getByText('Service location')).toBeInTheDocument();
-
-    // Should NOT render radio buttons for queue selection (no radiogroup with queue name)
-    expect(screen.queryByRole('radio', { name: /Triage - Main Hospital/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Triage - Main Hospital/i })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Dermatology - Outpatient Clinic/i })).toBeInTheDocument();
   });
 
-  it('displays the current queue with "(Current)" suffix in the ComboBox', () => {
+  it('displays the current queue with "(Current)" suffix on its radio label', () => {
     renderWithSwr(<QueueEntryActionModal {...defaultProps} />);
 
-    const combobox = screen.getByRole('combobox', { name: /service location/i });
     // mockQueueEntryAlice is in mockQueueSurgery
-    expect(combobox).toHaveValue('Surgery - Surgery (Current)');
+    expect(screen.getByRole('radio', { name: /Surgery - Surgery \(Current\)/i })).toBeChecked();
   });
 
-  it('filters queues by name when user types in the search box', async () => {
-    const user = userEvent.setup();
-    renderWithSwr(<QueueEntryActionModal {...defaultProps} />);
-
-    const combobox = screen.getByRole('combobox', { name: /service location/i });
-    await user.clear(combobox);
-    await user.type(combobox, 'Cardio');
-
-    // Should show Cardiology option
-    expect(screen.getByRole('option', { name: 'Cardiology - Heart Center' })).toBeInTheDocument();
-
-    // Should not show unrelated queues
-    expect(screen.queryByRole('option', { name: /Pharmacy/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /Pediatrics/i })).not.toBeInTheDocument();
-  });
-
-  it('filters queues by location name when user types in the search box', async () => {
-    const user = userEvent.setup();
-    renderWithSwr(<QueueEntryActionModal {...defaultProps} />);
-
-    const combobox = screen.getByRole('combobox', { name: /service location/i });
-    await user.clear(combobox);
-    await user.type(combobox, 'Heart Center');
-
-    // Should show queue at Heart Center location
-    expect(screen.getByRole('option', { name: 'Cardiology - Heart Center' })).toBeInTheDocument();
-
-    // Should not show queues at other locations
-    expect(screen.queryByRole('option', { name: /Main Hospital/i })).not.toBeInTheDocument();
-  });
-
-  it('allows user to select a queue from filtered results', async () => {
+  it('allows the user to select a different queue via radio button and submit', async () => {
     const mockSubmitAction = vi.fn().mockResolvedValue({ status: 200 });
     const user = userEvent.setup();
 
@@ -580,24 +546,17 @@ describe('QueueEntryActionModal - ComboBox behavior with many queues', () => {
       />,
     );
 
-    const combobox = screen.getByRole('combobox', { name: /service location/i });
-    await user.clear(combobox);
-    await user.type(combobox, 'Pediatrics');
+    const pediatricsRadio = screen.getByRole('radio', { name: 'Pediatrics - Children Wing' });
+    await user.click(pediatricsRadio);
+    expect(pediatricsRadio).toBeChecked();
 
-    const option = screen.getByRole('option', { name: 'Pediatrics - Children Wing' });
-    await user.click(option);
-
-    // Verify the selection is reflected in the combobox
-    expect(combobox).toHaveValue('Pediatrics - Children Wing');
-
-    // Submit and verify the selected queue is passed
     const submitButton = screen.getByRole('button', { name: 'Submit' });
     await user.click(submitButton);
 
     expect(mockSubmitAction).toHaveBeenCalled();
   });
 
-  it('clears submission error when user selects a different queue via ComboBox', async () => {
+  it('clears submission error when user selects a different queue via radio button', async () => {
     const mockSubmitAction = vi.fn().mockRejectedValueOnce({ message: 'Test error' });
     const user = userEvent.setup();
 
@@ -617,25 +576,11 @@ describe('QueueEntryActionModal - ComboBox behavior with many queues', () => {
     expect(await screen.findByText('Test error')).toBeInTheDocument();
 
     // Select a different queue
-    const combobox = screen.getByRole('combobox', { name: /service location/i });
-    await user.clear(combobox);
-    await user.type(combobox, 'Laboratory');
-    const option = screen.getByRole('option', { name: 'Laboratory - Main Hospital' });
-    await user.click(option);
+    const laboratoryRadio = screen.getByRole('radio', { name: 'Laboratory - Main Hospital' });
+    await user.click(laboratoryRadio);
 
     // Error should be cleared
     expect(screen.queryByText('Test error')).not.toBeInTheDocument();
-  });
-
-  it('performs case-insensitive search', async () => {
-    const user = userEvent.setup();
-    renderWithSwr(<QueueEntryActionModal {...defaultProps} />);
-
-    const combobox = screen.getByRole('combobox', { name: /service location/i });
-    await user.clear(combobox);
-    await user.type(combobox, 'RADIOLOGY');
-
-    expect(screen.getByRole('option', { name: 'Radiology - Imaging Center' })).toBeInTheDocument();
   });
 });
 describe('QueueEntryActionModal - time validation with minute precision', () => {

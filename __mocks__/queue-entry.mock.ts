@@ -101,8 +101,9 @@ export const mockQueueAltPriorities: Queue = {
 };
 
 /**
- * Mock queues that exceed the radio button threshold (>8) to trigger ComboBox rendering.
- * @see queue-entry-actions-modal.component.tsx for the threshold logic
+ * Mock queues used to verify that a large number of options (>8) still all render as
+ * radio buttons rather than switching to a searchable ComboBox.
+ * @see queue-entry-actions-modal.component.tsx
  */
 const createMockQueue = (id: number, name: string, locationName: string): Queue => ({
   uuid: `00000000-0000-0000-000${id}-000000000000`,
