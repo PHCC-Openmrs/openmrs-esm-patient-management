@@ -4,7 +4,6 @@ import dayjs from 'dayjs';
 import {
   Button,
   Checkbox,
-  ComboBox,
   InlineNotification,
   ModalBody,
   ModalFooter,
@@ -24,6 +23,7 @@ import {
   showSnackbar,
   type FetchResponse,
   useConfig,
+  useSession,
 } from '@openmrs/esm-framework';
 import { useMutateQueueEntries } from '../hooks/useQueueEntries';
 import { useQueues } from '../hooks/useQueues';
@@ -120,7 +120,10 @@ export const QueueEntryActionModal: React.FC<QueueEntryActionModalProps> = ({
     transitionTime: dayjs(initialTransitionDate).format('hh:mm'),
     transitionTimeFormat: dayjs(initialTransitionDate).hour() < 12 ? 'AM' : 'PM',
   });
-  const { queues } = useQueues();
+  // Scoped to the logged-in user's current session location, so staff working at one
+  // facility only see that facility's rooms/queues to move patients into.
+  const { sessionLocation } = useSession();
+  const { queues } = useQueues(sessionLocation?.uuid);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<{
     type: 'duplicate' | 'error';
@@ -296,43 +299,22 @@ export const QueueEntryActionModal: React.FC<QueueEntryActionModalProps> = ({
             {modalInstruction && <p>{modalInstruction}</p>}
             {showQueuePicker && (
               <section>
-                {/* Read this issue description for why we're using 8 locations as the cut off https://openmrs.atlassian.net/jira/software/c/projects/O3/issues/O3-4131 */}
-                {queues.length <= 8 ? (
-                  <RadioButtonGroup
-                    legendText={t('serviceLocation', 'Service location')}
-                    className={styles.radioButtonGroup}
-                    id="queue"
-                    name="queue"
-                    invalidText="Required"
-                    valueSelected={formState.selectedQueue}
-                    orientation="vertical"
-                    onChange={(uuid) => setSelectedQueueUuid(String(uuid))}>
-                    {queues?.map((queue) => {
-                      const { uuid } = queue;
-                      return <RadioButton key={uuid} labelText={getQueueDisplayText(queue)} value={uuid} />;
-                    })}
-                  </RadioButtonGroup>
-                ) : (
-                  <ComboBox<Queue>
-                    id="queue"
-                    titleText={t('serviceLocation', 'Service location')}
-                    selectedItem={selectedQueue}
-                    items={queues}
-                    itemToString={getQueueDisplayText}
-                    onChange={({ selectedItem }) => {
-                      if (selectedItem) {
-                        setSelectedQueueUuid(selectedItem.uuid);
-                      }
-                    }}
-                    shouldFilterItem={(menu) => {
-                      const itemDisplay = (menu?.item?.display ?? '').toLowerCase();
-                      const locationDisplay = (menu?.item?.location?.display ?? '').toLowerCase();
-                      const inputValue = (menu?.inputValue ?? '').toLowerCase();
-
-                      return itemDisplay.includes(inputValue) || locationDisplay.includes(inputValue);
-                    }}
-                  />
-                )}
+                {/* Always shown as radio buttons so every option for this location is visible
+                    at once, rather than requiring a search/scroll through a dropdown. */}
+                <RadioButtonGroup
+                  legendText={t('serviceLocation', 'Service location')}
+                  className={styles.radioButtonGroup}
+                  id="queue"
+                  name="queue"
+                  invalidText="Required"
+                  valueSelected={formState.selectedQueue}
+                  orientation="vertical"
+                  onChange={(uuid) => setSelectedQueueUuid(String(uuid))}>
+                  {queues?.map((queue) => {
+                    const { uuid } = queue;
+                    return <RadioButton key={uuid} labelText={getQueueDisplayText(queue)} value={uuid} />;
+                  })}
+                </RadioButtonGroup>
               </section>
             )}
 
