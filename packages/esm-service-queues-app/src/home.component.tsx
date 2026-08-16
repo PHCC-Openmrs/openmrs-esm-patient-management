@@ -7,7 +7,7 @@ import OverdueVisits from './overdue-visits/overdue-visits.component';
 const Home: React.FC = () => {
   return (
     <>
-      <PatientQueueHeader showFilters showServiceFilter={false} showProgramFilter />
+      <PatientQueueHeader showFilters showLocationFilter={false} showServiceFilter={false} showProgramFilter />
       <ClinicMetrics />
       <DefaultQueueTable />
       <OverdueVisits />

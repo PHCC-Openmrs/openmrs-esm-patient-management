@@ -18,6 +18,7 @@ import styles from './patient-queue-header.scss';
 interface PatientQueueHeaderProps {
   title?: string | JSX.Element;
   showFilters: boolean;
+  showLocationFilter?: boolean;
   showServiceFilter?: boolean;
   showProgramFilter?: boolean;
   actions?: React.ReactNode;
@@ -26,6 +27,7 @@ interface PatientQueueHeaderProps {
 const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({
   title,
   showFilters,
+  showLocationFilter = true,
   showServiceFilter = true,
   showProgramFilter = false,
   actions,
@@ -38,7 +40,7 @@ const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({
     useServiceQueuesStore();
   const { queues } = useQueues();
   const { programs } = usePrograms();
-  const showLocationDropdown = showFilters && queueLocations.length > 1;
+  const showLocationDropdown = showFilters && showLocationFilter && queueLocations.length > 1;
   const showServiceDropdown = showFilters && showServiceFilter && queues.length > 1;
   const showProgramDropdown = showFilters && showProgramFilter && programs.length > 1;
 
