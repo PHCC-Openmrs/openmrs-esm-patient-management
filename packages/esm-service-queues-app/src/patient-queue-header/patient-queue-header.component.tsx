@@ -104,7 +104,25 @@ const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({
   );
 
   useEffect(() => {
-    if (!isLoading && !error && !selectedQueueLocationUuid) {
+    if (isLoading || error) {
+      return;
+    }
+    // selectedQueueLocationUuid is persisted in sessionStorage, so it can carry a stale value across
+    // session-location changes. When the location dropdown isn't shown, there's no way for the user to
+    // manually override it, so always mirror the live session location instead of leaving a stale
+    // (possibly wrong-location) selection in place.
+    if (!showLocationDropdown && userSession?.sessionLocation?.uuid) {
+      if (selectedQueueLocationUuid !== userSession.sessionLocation.uuid) {
+        handleQueueLocationChange({
+          selectedItem: {
+            id: userSession.sessionLocation.uuid,
+            name: userSession.sessionLocation.display,
+          },
+        });
+      }
+      return;
+    }
+    if (!selectedQueueLocationUuid) {
       // Prefer the session location, even if it isn't tagged as a "queue location" -- otherwise a
       // deployment with exactly one tagged queue location would force-select that location instead
       // of the clinician's actual session location, and the tables would show the wrong patients.
@@ -120,6 +138,7 @@ const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({
       }
     }
   }, [
+    showLocationDropdown,
     selectedQueueLocationName,
     selectedQueueLocationUuid,
     error,
