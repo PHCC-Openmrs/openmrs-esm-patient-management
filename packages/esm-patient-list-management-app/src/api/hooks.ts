@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
-import { restBaseUrl, openmrsFetch, type FetchResponse, useConfig, useSession } from '@openmrs/esm-framework';
+import { fhirBaseUrl, restBaseUrl, openmrsFetch, type FetchResponse, useConfig, useSession } from '@openmrs/esm-framework';
 import {
   cohortUrl,
   getAllPatientLists,
@@ -180,21 +180,113 @@ const allPatientsRepresentation =
   'custom:(uuid,identifiers:(identifier,preferred,identifierType:(display)),' +
   'person:(gender,birthdate,display,attributes:(value,attributeType:(display)),addresses:(preferred,stateProvince)))';
 
-export function useAllPatients(startIndex: number = 0, pageSize: number = 10, searchTerm: string = '') {
-  // The classic `q` search (rather than a FHIR `name` filter) is what the rest of this app's patient
-  // search uses -- OpenMRS core matches `q` against both patient names and identifiers (including
-  // National ID-type ones), so this covers more of the visible columns than a name-only filter would.
-  const searchParam = searchTerm ? `&q=${encodeURIComponent(searchTerm)}` : '';
+interface PatientContactDetails {
+  nationalId: string;
+  phoneNumber: string;
+}
+
+const patientContactDetailsRepresentation =
+  'custom:(identifiers:(identifier,identifierType:(display)),person:(attributes:(value,attributeType:(display))))';
+
+async function fetchPatientContactDetails(patientUuids: Array<string>): Promise<Record<string, PatientContactDetails>> {
+  const results = await Promise.all(
+    patientUuids.map((uuid) =>
+      openmrsFetch(`${restBaseUrl}/patient/${uuid}?v=${patientContactDetailsRepresentation}`).then((res) => ({
+        uuid,
+        data: res.data,
+      })),
+    ),
+  );
+
+  return Object.fromEntries(
+    results.map(({ uuid, data }) => [
+      uuid,
+      {
+        nationalId:
+          data?.identifiers?.find((identifier) => identifier.identifierType?.display === 'National ID')?.identifier ??
+          '--',
+        phoneNumber:
+          data?.person?.attributes?.find((attribute) => attribute.attributeType?.display === 'Phone Number')?.value ??
+          '--',
+      },
+    ]),
+  );
+}
+
+function usePatientContactDetails(patientUuids: Array<string>) {
+  const swrKey = patientUuids.length ? ['patient-contact-details', ...patientUuids] : null;
+  const { data, isLoading } = useSWR(swrKey, () => fetchPatientContactDetails(patientUuids));
+
+  return {
+    contactDetailsByUuid: data ?? {},
+    isLoadingContactDetails: isLoading,
+  };
+}
+
+// OpenMRS core's `/patient` REST resource doesn't support an unfiltered "get all" -- it throws
+// ResourceDoesNotSupportOperationException unless a `q` search term is given. So the unfiltered
+// browse view has to keep using the FHIR endpoint (which does support listing everything), while an
+// active search switches to the classic `q` search below, which matches names AND identifiers.
+function useBrowseAllPatients(startIndex: number, pageSize: number, enabled: boolean) {
+  const url = `${fhirBaseUrl}/Patient?_count=${pageSize}&_getpagesoffset=${startIndex}&_sort=name`;
+
+  const { data, error, isLoading, isValidating, mutate } = useSWR<FetchResponse<fhir.Bundle>, Error>(
+    enabled ? url : null,
+    openmrsFetch,
+    { keepPreviousData: true },
+  );
+
+  const basePatients = useMemo(
+    () =>
+      (data?.data?.entry ?? [])
+        .map((entry) => entry.resource as fhir.Patient)
+        .filter(Boolean)
+        .map((patient) => ({
+          uuid: patient.id,
+          name: patient.name?.[0]?.text ?? '--',
+          identifier: patient.identifier?.[0]?.value ?? '--',
+          sex: patient.gender ?? '--',
+          birthDate: patient.birthDate ?? '--',
+          // The preferred address is mapped to the "home" use; fall back to the first address
+          // for patients whose preferred address wasn't marked as such.
+          governorate:
+            (patient.address?.find((address) => address.use === 'home') ?? patient.address?.[0])?.state ?? '--',
+        })),
+    [data],
+  );
+
+  const patientUuids = useMemo(() => (enabled ? basePatients.map((patient) => patient.uuid) : []), [basePatients, enabled]);
+  const { contactDetailsByUuid, isLoadingContactDetails } = usePatientContactDetails(patientUuids);
+
+  const patients: Array<SimplePatient> = useMemo(
+    () =>
+      basePatients.map((patient) => ({
+        ...patient,
+        nationalId: contactDetailsByUuid[patient.uuid]?.nationalId ?? '--',
+        phoneNumber: contactDetailsByUuid[patient.uuid]?.phoneNumber ?? '--',
+      })),
+    [basePatients, contactDetailsByUuid],
+  );
+
+  return {
+    patients,
+    totalPatients: data?.data?.total ?? 0,
+    isLoading: isLoading || (basePatients.length > 0 && isLoadingContactDetails),
+    isValidating,
+    error,
+    mutate,
+  };
+}
+
+function useSearchAllPatients(startIndex: number, pageSize: number, searchTerm: string, enabled: boolean) {
+  // OpenMRS core matches `q` against both patient names and identifiers (including National ID-type
+  // ones), so this covers more of the visible columns than the browse view's name-only FHIR filter.
   const url =
     `${restBaseUrl}/patient?v=${allPatientsRepresentation}&limit=${pageSize}&startIndex=${startIndex}` +
-    `&totalCount=true${searchParam}`;
+    `&totalCount=true&q=${encodeURIComponent(searchTerm)}`;
 
-  // keepPreviousData avoids clearing `data` to undefined between keystrokes -- each search term is a
-  // distinct SWR cache key, so without it the table would flicker to empty rows on every change while
-  // the new key's request is in flight (isLoading still flips true per-key regardless of this option;
-  // the consuming component guards against that separately).
   const { data, error, isLoading, isValidating, mutate } = useSWR<FetchResponse<PatientSearchResponse>, Error>(
-    url,
+    enabled ? url : null,
     openmrsFetch,
     { keepPreviousData: true },
   );
@@ -232,6 +324,13 @@ export function useAllPatients(startIndex: number = 0, pageSize: number = 10, se
     error,
     mutate,
   };
+}
+
+export function useAllPatients(startIndex: number = 0, pageSize: number = 10, searchTerm: string = '') {
+  const isSearching = !!searchTerm;
+  const browseResult = useBrowseAllPatients(startIndex, pageSize, !isSearching);
+  const searchResult = useSearchAllPatients(startIndex, pageSize, searchTerm, isSearching);
+  return isSearching ? searchResult : browseResult;
 }
 
 export function useCohortTypes() {
