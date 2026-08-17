@@ -99,6 +99,7 @@ const AllPatientsTable: React.FC = () => {
             id={`${id}-search`}
             className={styles.searchOverrides}
             labelText=""
+            value={searchTerm}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               setSearchTerm(e.target.value);
               setCurrentPage(1);

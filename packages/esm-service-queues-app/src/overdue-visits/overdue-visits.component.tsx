@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import {
@@ -25,13 +25,36 @@ import {
 } from '@openmrs/esm-framework';
 import { type ConfigObject } from '../config-schema';
 import { useOverdueVisits } from '../metrics/metrics.resource';
+import { useActiveProgramsForPatients } from '../hooks/usePatientPrograms';
+import { useServiceQueuesStore } from '../store/store';
 import styles from '../queue-table/queue-table.scss';
 
 function OverdueVisits() {
   const { t } = useTranslation();
   const layout = useLayoutType();
   const { customPatientChartUrl } = useConfig<ConfigObject>();
-  const { overdueVisits, isLoading, mutate } = useOverdueVisits();
+  const { overdueVisits: allOverdueVisits, isLoading, mutate } = useOverdueVisits();
+  const { selectedProgramUuid } = useServiceQueuesStore();
+
+  // Program enrollment isn't part of the visit representation, so it can't be filtered
+  // server-side -- only fetched (and filtered) once we know which patients have overdue visits.
+  const patientUuidsNeedingProgramCheck = useMemo(
+    () => (selectedProgramUuid ? allOverdueVisits.map((visit) => visit.patient?.uuid).filter(Boolean) : []),
+    [allOverdueVisits, selectedProgramUuid],
+  );
+  const { programsByPatientUuid } = useActiveProgramsForPatients(patientUuidsNeedingProgramCheck);
+
+  const overdueVisits = useMemo(
+    () =>
+      allOverdueVisits.filter((visit) => {
+        if (!selectedProgramUuid) {
+          return true;
+        }
+        const patientPrograms = programsByPatientUuid[visit.patient?.uuid] ?? [];
+        return patientPrograms.some((enrollment) => enrollment.program?.uuid === selectedProgramUuid);
+      }),
+    [allOverdueVisits, selectedProgramUuid, programsByPatientUuid],
+  );
 
   const headers = [
     { key: 'name', header: t('name', 'Name') },

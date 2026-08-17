@@ -215,7 +215,13 @@ export function useAllPatients(startIndex: number = 0, pageSize: number = 10, se
   const searchParam = searchTerm ? `&name=${encodeURIComponent(searchTerm)}` : '';
   const url = `${fhirBaseUrl}/Patient?_count=${pageSize}&_getpagesoffset=${startIndex}&_sort=name${searchParam}`;
 
-  const { data, error, isLoading, isValidating, mutate } = useSWR<FetchResponse<fhir.Bundle>, Error>(url, openmrsFetch);
+  // keepPreviousData avoids clearing `data` to undefined between keystrokes -- each search term is a
+  // distinct SWR cache key, so without it the table (and isLoading) would flicker to empty on every change.
+  const { data, error, isLoading, isValidating, mutate } = useSWR<FetchResponse<fhir.Bundle>, Error>(
+    url,
+    openmrsFetch,
+    { keepPreviousData: true },
+  );
 
   const basePatients = useMemo(
     () =>
