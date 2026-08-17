@@ -105,18 +105,18 @@ const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({
 
   useEffect(() => {
     if (!isLoading && !error && !selectedQueueLocationUuid) {
-      if (queueLocations.length === 1) {
-        handleQueueLocationChange({ selectedItem: queueLocations[0] });
-      } else if (userSession?.sessionLocation?.uuid) {
-        // Default to the session location even if it isn't tagged as a "queue location" --
-        // otherwise the tables fall back to showing every location's patients instead of
-        // just the ones at the clinician's current location.
+      // Prefer the session location, even if it isn't tagged as a "queue location" -- otherwise a
+      // deployment with exactly one tagged queue location would force-select that location instead
+      // of the clinician's actual session location, and the tables would show the wrong patients.
+      if (userSession?.sessionLocation?.uuid) {
         handleQueueLocationChange({
           selectedItem: {
             id: userSession?.sessionLocation?.uuid,
             name: userSession?.sessionLocation?.display,
           },
         });
+      } else if (queueLocations.length === 1) {
+        handleQueueLocationChange({ selectedItem: queueLocations[0] });
       }
     }
   }, [

@@ -216,7 +216,9 @@ export function useAllPatients(startIndex: number = 0, pageSize: number = 10, se
   const url = `${fhirBaseUrl}/Patient?_count=${pageSize}&_getpagesoffset=${startIndex}&_sort=name${searchParam}`;
 
   // keepPreviousData avoids clearing `data` to undefined between keystrokes -- each search term is a
-  // distinct SWR cache key, so without it the table (and isLoading) would flicker to empty on every change.
+  // distinct SWR cache key, so without it the table would flicker to empty rows on every change while
+  // the new key's request is in flight (isLoading still flips true per-key regardless of this option;
+  // the consuming component guards against that separately).
   const { data, error, isLoading, isValidating, mutate } = useSWR<FetchResponse<fhir.Bundle>, Error>(
     url,
     openmrsFetch,

@@ -1,4 +1,4 @@
-import React, { useId, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DataTable,
@@ -44,6 +44,17 @@ const AllPatientsTable: React.FC = () => {
     debouncedSearchTerm,
   );
 
+  // SWR's `isLoading` flips true for every new search term / page, since each is a distinct cache
+  // key -- gating the full-page skeleton on it would remount the whole tree (including the Search
+  // input, losing focus and in-progress typing) on every keystroke. Only show it for the very first
+  // load; subsequent fetches are covered by the inline `isValidating` spinner below.
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  useEffect(() => {
+    if (!isLoading) {
+      setHasLoadedOnce(true);
+    }
+  }, [isLoading]);
+
   const headers = useMemo(
     () => [
       { key: 'name', header: t('name', 'Name') },
@@ -76,7 +87,7 @@ const AllPatientsTable: React.FC = () => {
     [patients],
   );
 
-  if (isLoading) {
+  if (isLoading && !hasLoadedOnce) {
     return (
       <div className={styles.skeletonContainer}>
         <DataTableSkeleton
