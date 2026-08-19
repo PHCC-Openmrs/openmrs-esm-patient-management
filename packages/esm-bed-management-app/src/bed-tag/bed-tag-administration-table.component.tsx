@@ -16,7 +16,15 @@ import {
   Tile,
 } from '@carbon/react';
 import { Add, Edit, TrashCan } from '@carbon/react/icons';
-import { ErrorState, isDesktop as desktopLayout, showModal, showSnackbar, useLayoutType } from '@openmrs/esm-framework';
+import {
+  ErrorState,
+  isDesktop as desktopLayout,
+  showModal,
+  showSnackbar,
+  useLayoutType,
+  useSession,
+  userHasAccess,
+} from '@openmrs/esm-framework';
 import type { BedTagData } from '../types';
 import { deleteBedTag, useBedTags } from '../summary/summary.resource';
 import CardHeader from '../card-header/card-header.component';
@@ -35,6 +43,8 @@ const BedTagAdministrationTable: React.FC = () => {
   const [isBedDataLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const session = useSession();
+  const canEditBedTags = userHasAccess('Edit Bed Tags', session?.user);
 
   const launchNewBedTagModal = () => {
     const dispose = showModal('new-bed-tag-modal', {
@@ -109,7 +119,7 @@ const BedTagAdministrationTable: React.FC = () => {
     return bedTags?.map((entry) => ({
       id: entry.id,
       name: entry?.name,
-      actions: (
+      actions: canEditBedTags ? (
         <>
           <Button
             renderIcon={Edit}
@@ -130,9 +140,9 @@ const BedTagAdministrationTable: React.FC = () => {
             tooltipAlignment="start"
           />
         </>
-      ),
+      ) : null,
     }));
-  }, [bedTags, t, responsiveSize, launchEditBedTagModal, launchDeleteBedTagModal]);
+  }, [bedTags, t, responsiveSize, launchEditBedTagModal, launchDeleteBedTagModal, canEditBedTags]);
 
   if (isBedDataLoading || isLoadingBedTags) {
     return (
@@ -165,7 +175,7 @@ const BedTagAdministrationTable: React.FC = () => {
           <span className={styles.backgroundDataFetchingIndicator}>
             <span>{isValidatingBedTags ? <InlineLoading /> : null}</span>
           </span>
-          {bedTags?.length ? (
+          {bedTags?.length && canEditBedTags ? (
             <Button kind="ghost" renderIcon={(props) => <Add size={16} {...props} />} onClick={launchNewBedTagModal}>
               {t('addBedTag', 'Add bed tag')}
             </Button>
@@ -207,14 +217,18 @@ const BedTagAdministrationTable: React.FC = () => {
                       <p className={styles.content}>{t('No data', 'No data to display')}</p>
                       <p className={styles.helper}>{t('checkFilters', 'Check the filters above')}</p>
                     </div>
-                    <p className={styles.separator}>{t('or', 'or')}</p>
-                    <Button
-                      kind="ghost"
-                      size="sm"
-                      renderIcon={(props) => <Add size={16} {...props} />}
-                      onClick={launchNewBedTagModal}>
-                      {t('addBedTag', 'Add bed tag')}
-                    </Button>
+                    {canEditBedTags && (
+                      <>
+                        <p className={styles.separator}>{t('or', 'or')}</p>
+                        <Button
+                          kind="ghost"
+                          size="sm"
+                          renderIcon={(props) => <Add size={16} {...props} />}
+                          onClick={launchNewBedTagModal}>
+                          {t('addBedTag', 'Add bed tag')}
+                        </Button>
+                      </>
+                    )}
                   </Tile>
                 </div>
               ) : null}

@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Button, OverflowMenu, OverflowMenuItem } from '@carbon/react';
 import { useTranslation } from 'react-i18next';
-import { isDesktop, showModal, useConfig, useLayoutType } from '@openmrs/esm-framework';
+import { isDesktop, showModal, useConfig, useLayoutType, useSession, userHasAccess } from '@openmrs/esm-framework';
 import { type QueueTableColumnFunction, type QueueTableCellComponentProps, type QueueEntry } from '../../types';
 import { type ConfigObject, type ActionsColumnConfig, type QueueEntryAction } from '../../config-schema';
 import { mapVisitQueueEntryProperties, serveQueueEntry } from '../../service-queues.resource';
@@ -229,6 +229,10 @@ export const queueTableActionColumn: QueueTableColumnFunction = (key, header, co
     const layout = useLayoutType();
     const actionPropsByKey = useActionPropsByKey();
     const { buttons, overflowMenu } = config.actions;
+    const session = useSession();
+    // All queue-entry actions (call/move/transition/edit/remove/delete/undo/auto-assign)
+    // are gated by this single backend privilege - there's no per-action split.
+    const canManageQueueEntries = userHasAccess('Manage Queue Entries', session?.user);
 
     const [buttonComponents, overflowMenuComponents] = useMemo(() => {
       const declaredButtonComponents = buttons
@@ -275,6 +279,10 @@ export const queueTableActionColumn: QueueTableColumnFunction = (key, header, co
 
       return [[...declaredButtonComponents, fallbackActionComponent], overflowMenuComponents];
     }, [buttons, overflowMenu, queueEntry, actionPropsByKey]);
+
+    if (!canManageQueueEntries) {
+      return null;
+    }
 
     return (
       <div className={styles.actionsCell}>

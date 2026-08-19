@@ -17,7 +17,15 @@ import {
   Tile,
 } from '@carbon/react';
 import { Add, Edit, TrashCan } from '@carbon/react/icons';
-import { ErrorState, isDesktop as desktopLayout, showModal, showSnackbar, useLayoutType } from '@openmrs/esm-framework';
+import {
+  ErrorState,
+  isDesktop as desktopLayout,
+  showModal,
+  showSnackbar,
+  useLayoutType,
+  useSession,
+  userHasAccess,
+} from '@openmrs/esm-framework';
 import type { BedTypeData } from '../types';
 import { deleteBedType, useBedTypes } from '../summary/summary.resource';
 import CardHeader from '../card-header/card-header.component';
@@ -35,6 +43,8 @@ const BedTypeAdministrationTable: React.FC = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const session = useSession();
+  const canEditBedTypes = userHasAccess('Edit Bed Type', session?.user);
 
   const openNewBedTypeModal = () => {
     const dispose = showModal('new-bed-type-modal', {
@@ -116,7 +126,7 @@ const BedTypeAdministrationTable: React.FC = () => {
         name: entry?.name,
         displayName: entry?.displayName,
         description: entry?.description,
-        actions: (
+        actions: canEditBedTypes ? (
           <>
             <IconButton
               align="top-start"
@@ -141,9 +151,9 @@ const BedTypeAdministrationTable: React.FC = () => {
               <TrashCan />
             </IconButton>
           </>
-        ),
+        ) : null,
       })),
-    [openEditBedTypeModal, openDeleteBedTypeModal, responsiveSize, bedTypes, t],
+    [openEditBedTypeModal, openDeleteBedTypeModal, responsiveSize, bedTypes, t, canEditBedTypes],
   );
 
   if (isLoadingBedTypes) {
@@ -176,7 +186,7 @@ const BedTypeAdministrationTable: React.FC = () => {
           <span className={styles.backgroundDataFetchingIndicator}>
             <span>{isValidatingBedTypes ? <InlineLoading /> : null}</span>
           </span>
-          {bedTypes?.length ? (
+          {bedTypes?.length && canEditBedTypes ? (
             <Button kind="ghost" renderIcon={(props) => <Add size={16} {...props} />} onClick={openNewBedTypeModal}>
               {t('addBedType', 'Add bed type')}
             </Button>
@@ -218,14 +228,18 @@ const BedTypeAdministrationTable: React.FC = () => {
                       <p className={styles.content}>{t('noDataToDisplay', 'No data to display')}</p>
                       <p className={styles.helper}>{t('checkFilters', 'Check the filters above')}</p>
                     </div>
-                    <p className={styles.separator}>{t('or', 'or')}</p>
-                    <Button
-                      kind="ghost"
-                      size="sm"
-                      renderIcon={(props) => <Add size={16} {...props} />}
-                      onClick={openNewBedTypeModal}>
-                      {t('addBedType', 'Add bed type')}
-                    </Button>
+                    {canEditBedTypes && (
+                      <>
+                        <p className={styles.separator}>{t('or', 'or')}</p>
+                        <Button
+                          kind="ghost"
+                          size="sm"
+                          renderIcon={(props) => <Add size={16} {...props} />}
+                          onClick={openNewBedTypeModal}>
+                          {t('addBedType', 'Add bed type')}
+                        </Button>
+                      </>
+                    )}
                   </Tile>
                 </div>
               ) : null}
