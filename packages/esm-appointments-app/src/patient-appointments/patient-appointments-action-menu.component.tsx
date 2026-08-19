@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Layer, OverflowMenu, OverflowMenuItem } from '@carbon/react';
-import { launchWorkspace2, showModal, useLayoutType } from '@openmrs/esm-framework';
+import { launchWorkspace2, showModal, useLayoutType, useSession, userHasAccess } from '@openmrs/esm-framework';
 import type { Appointment } from '../types';
 import styles from './patient-appointments-action-menu.scss';
 
@@ -24,6 +24,12 @@ export const PatientAppointmentsActionMenu = ({
 }: appointmentsActionMenuProps) => {
   const { t } = useTranslation();
   const isTablet = useLayoutType() === 'tablet';
+  const session = useSession();
+  // Rescheduling (the "Edit" action) requires the full privilege - Manage Own
+  // Appointments does not cover it, per AppointmentsServiceImpl.reschedule.
+  const canReschedule = userHasAccess('Manage Appointments', session?.user);
+  const canCancel =
+    userHasAccess('Manage Appointments', session?.user) || userHasAccess('Manage Own Appointments', session?.user);
 
   const handleLaunchEditAppointmentForm = () => {
     if (launchAppointmentForm) {
@@ -41,23 +47,31 @@ export const PatientAppointmentsActionMenu = ({
     });
   };
 
+  if (!canReschedule && !canCancel) {
+    return null;
+  }
+
   return (
     <Layer className={styles.layer}>
       <OverflowMenu aria-label="Edit or delete appointment" size={isTablet ? 'lg' : 'sm'} flipped align="left">
-        <OverflowMenuItem
-          className={styles.menuItem}
-          id="editAppointment"
-          itemText={t('edit', 'Edit')}
-          onClick={handleLaunchEditAppointmentForm}
-        />
-        <OverflowMenuItem
-          className={styles.menuItem}
-          hasDivider
-          id="cancelAppointment"
-          isDelete={true}
-          itemText={t('cancel', 'Cancel')}
-          onClick={handleLaunchCancelAppointmentModal}
-        />
+        {canReschedule && (
+          <OverflowMenuItem
+            className={styles.menuItem}
+            id="editAppointment"
+            itemText={t('edit', 'Edit')}
+            onClick={handleLaunchEditAppointmentForm}
+          />
+        )}
+        {canCancel && (
+          <OverflowMenuItem
+            className={styles.menuItem}
+            hasDivider
+            id="cancelAppointment"
+            isDelete={true}
+            itemText={t('cancel', 'Cancel')}
+            onClick={handleLaunchCancelAppointmentModal}
+          />
+        )}
       </OverflowMenu>
     </Layer>
   );

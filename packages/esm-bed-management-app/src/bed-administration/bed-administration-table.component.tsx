@@ -24,6 +24,8 @@ import {
   launchWorkspace2,
   useLayoutType,
   usePagination,
+  useSession,
+  userHasAccess,
 } from '@openmrs/esm-framework';
 import { type Bed, type BedFormWorkspaceConfig, type WorkspaceMode } from '../types';
 import { useBedsGroupedByLocation } from '../summary/summary.resource';
@@ -47,6 +49,8 @@ const BedAdministrationTable: React.FC = () => {
     errorFetchingBedsGroupedByLocation,
   } = useBedsGroupedByLocation();
   const [filterOption, setFilterOption] = useState('ALL');
+  const session = useSession();
+  const canEditBeds = userHasAccess('Edit Beds', session?.user);
 
   function CustomTag({ condition }: { condition: boolean }) {
     const { t } = useTranslation();
@@ -122,7 +126,7 @@ const BedAdministrationTable: React.FC = () => {
       location: bed.location.display,
       occupancyStatus: <CustomTag condition={bed?.status === 'OCCUPIED'} />,
       allocationStatus: <CustomTag condition={Boolean(bed.location?.uuid)} />,
-      actions: (
+      actions: canEditBeds ? (
         <Button
           renderIcon={Edit}
           onClick={() => handleLaunchBedWorkspace('edit', bed)}
@@ -132,9 +136,9 @@ const BedAdministrationTable: React.FC = () => {
           size={responsiveSize}
           tooltipPosition="right"
         />
-      ),
+      ) : null,
     }));
-  }, [handleLaunchBedWorkspace, responsiveSize, paginatedData, t]);
+  }, [handleLaunchBedWorkspace, responsiveSize, paginatedData, t, canEditBeds]);
 
   if (isLoadingBedsGroupedByLocation && !bedsGroupedByLocation.length) {
     return (
@@ -179,12 +183,14 @@ const BedAdministrationTable: React.FC = () => {
                 type="inline"
               />
             </div>
-            <Button
-              kind="ghost"
-              renderIcon={(props) => <Add size={16} {...props} />}
-              onClick={() => handleLaunchBedWorkspace('add')}>
-              {t('addBed', 'Add bed')}
-            </Button>
+            {canEditBeds && (
+              <Button
+                kind="ghost"
+                renderIcon={(props) => <Add size={16} {...props} />}
+                onClick={() => handleLaunchBedWorkspace('add')}>
+                {t('addBed', 'Add bed')}
+              </Button>
+            )}
           </div>
         </CardHeader>
         <DataTable rows={tableRows} headers={tableHeaders} isSortable size={isTablet ? 'lg' : 'sm'} useZebraStyles>
@@ -223,14 +229,18 @@ const BedAdministrationTable: React.FC = () => {
                       <p className={styles.content}>{t('No data', 'No data to display')}</p>
                       <p className={styles.helper}>{t('checkFilters', 'Check the filters above')}</p>
                     </div>
-                    <p className={styles.separator}>{t('or', 'or')}</p>
-                    <Button
-                      kind="ghost"
-                      size="sm"
-                      renderIcon={(props) => <Add size={16} {...props} />}
-                      onClick={() => handleLaunchBedWorkspace('add')}>
-                      {t('addBed', 'Add bed')}
-                    </Button>
+                    {canEditBeds && (
+                      <>
+                        <p className={styles.separator}>{t('or', 'or')}</p>
+                        <Button
+                          kind="ghost"
+                          size="sm"
+                          renderIcon={(props) => <Add size={16} {...props} />}
+                          onClick={() => handleLaunchBedWorkspace('add')}>
+                          {t('addBed', 'Add bed')}
+                        </Button>
+                      </>
+                    )}
                   </Tile>
                 </div>
               ) : null}
