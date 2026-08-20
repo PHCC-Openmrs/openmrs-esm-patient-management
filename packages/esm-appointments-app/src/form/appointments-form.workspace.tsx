@@ -1,14 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import {
-  Controller,
-  useController,
-  useForm,
-  type Control,
-  type FieldErrors,
-  type FieldValues,
-  type Path,
-} from 'react-hook-form';
+import { Controller, useController, useForm, type FieldValues, type Path } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -24,8 +16,6 @@ import {
   SelectItem,
   Stack,
   TextArea,
-  TimePicker,
-  TimePickerSelect,
   Toggle,
 } from '@carbon/react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -63,10 +53,13 @@ interface AppointmentsFormProps {
   patientUuid: string;
 }
 
-const time12HourFormatRegexPattern = '^(1[0-2]|0?[1-9]):[0-5][0-9]$';
 const time12HourFormatRegex = /^(1[0-2]|0?[1-9]):[0-5][0-9]$/;
 
 const isValidTime = (timeStr: string) => time12HourFormatRegex.test(timeStr);
+
+// Duration is no longer a user-editable field - this is the fallback used whenever
+// neither an existing appointment nor the selected service specifies one.
+const DEFAULT_APPOINTMENT_DURATION_MINUTES = 30;
 
 export const appointmentsFormSchema = z
   .object({
@@ -219,10 +212,13 @@ const AppointmentsForm: React.FC<Workspace2DefinitionProps<AppointmentsFormProps
     ? dayjs(new Date(appointment?.startDateTime)).format('hh:mm')
     : dayjs(new Date()).format('hh:mm');
 
+  // Duration is no longer a visible field (see TimeAndDuration removal below), so it must
+  // always resolve to a valid value on its own - falls back to 30 minutes when there's no
+  // existing appointment to derive it from and the selected service has no durationMins.
   const defaultDuration =
     appointment?.startDateTime && appointment?.endDateTime
       ? dayjs(appointment.endDateTime).diff(dayjs(appointment.startDateTime), 'minutes')
-      : undefined;
+      : DEFAULT_APPOINTMENT_DURATION_MINUTES;
 
   const defaultDateAppointmentScheduled = appointment?.dateAppointmentScheduled
     ? new Date(appointment?.dateAppointmentScheduled)
@@ -538,7 +534,8 @@ const AppointmentsForm: React.FC<Workspace2DefinitionProps<AppointmentsFormProps
                       if (!isEditing) {
                         setValue(
                           'duration',
-                          serviceTypes?.find((service) => service.name === event.target.value)?.durationMins,
+                          serviceTypes?.find((service) => service.name === event.target.value)?.durationMins ??
+                            DEFAULT_APPOINTMENT_DURATION_MINUTES,
                         );
                       } else {
                         const previousServiceDuration = serviceTypes?.find(
@@ -658,8 +655,6 @@ const AppointmentsForm: React.FC<Workspace2DefinitionProps<AppointmentsFormProps
                     />
                   </ResponsiveWrapper>
 
-                  {!watch('isAllDayAppointment') && <TimeAndDuration t={t} control={control} errors={errors} />}
-
                   <ResponsiveWrapper>
                     <Controller
                       name="recurringPatternPeriod"
@@ -774,8 +769,6 @@ const AppointmentsForm: React.FC<Workspace2DefinitionProps<AppointmentsFormProps
                       )}
                     />
                   </ResponsiveWrapper>
-
-                  {!watch('isAllDayAppointment') && <TimeAndDuration t={t} control={control} errors={errors} />}
                 </div>
               )}
             </div>
@@ -914,82 +907,5 @@ const AppointmentsForm: React.FC<Workspace2DefinitionProps<AppointmentsFormProps
     </Workspace2>
   );
 };
-
-/**
- * TimeAndDuration component for appointment form
- * Uses AppointmentFormData from module scope for strict typing.
- */
-interface TimeAndDurationProps {
-  t: ReturnType<typeof useTranslation>['t'];
-  control: Control<AppointmentFormData>;
-  errors: FieldErrors<AppointmentFormData>;
-}
-
-function TimeAndDuration({ t, control, errors }: TimeAndDurationProps) {
-  return (
-    <>
-      <ResponsiveWrapper>
-        <Controller
-          name="startTime"
-          control={control}
-          render={({ field: { onChange, value } }) => (
-            <TimePicker
-              id="time-picker"
-              pattern={time12HourFormatRegexPattern}
-              invalid={!!errors?.startTime}
-              invalidText={errors?.startTime?.message ? String(errors.startTime.message) : undefined}
-              labelText={t('time', 'Time')}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                onChange(event.target.value);
-              }}
-              style={{ marginLeft: '0.125rem', flex: 'none' }}
-              value={value}>
-              <Controller
-                name="timeFormat"
-                control={control}
-                render={({ field: { value, onChange } }) => (
-                  <TimePickerSelect
-                    id="time-picker-select-1"
-                    onChange={(event: React.ChangeEvent<HTMLSelectElement>) =>
-                      onChange(event.target.value as 'AM' | 'PM')
-                    }
-                    value={value}
-                    aria-label={t('time', 'Time')}>
-                    <SelectItem value="AM" text="AM" />
-                    <SelectItem value="PM" text="PM" />
-                  </TimePickerSelect>
-                )}
-              />
-            </TimePicker>
-          )}
-        />
-      </ResponsiveWrapper>
-      <ResponsiveWrapper>
-        <Controller
-          name="duration"
-          control={control}
-          render={({ field: { onChange, onBlur, value, ref } }) => (
-            <NumberInput
-              allowEmpty
-              disableWheel
-              hideSteppers
-              id="duration"
-              invalid={!!errors?.duration}
-              invalidText={errors?.duration?.message ? String(errors.duration.message) : undefined}
-              label={t('durationInMinutes', 'Duration (minutes)')}
-              onBlur={onBlur}
-              onChange={(event, state) => {
-                const value = state?.value ?? (event.target as HTMLInputElement).value;
-                onChange(value === '' ? null : Number(value));
-              }}
-              ref={ref}
-              value={value ?? ''}
-            />
-          )}
-        />
-      </ResponsiveWrapper>
-    </>
-  );
-}
 
 export default AppointmentsForm;
