@@ -12,6 +12,8 @@ import {
   CustomOverflowMenuItem,
   launchWorkspace2,
   showModal,
+  useSession,
+  userHasAccess,
 } from '@openmrs/esm-framework';
 import { deletePatientList } from '../api/patient-list.resource';
 import { usePatientListDetails, usePatientListMembers } from '../api/hooks';
@@ -36,6 +38,9 @@ const ListDetails = () => {
   const [currentPage, setPageCount] = useState(1);
   const [currentPageSize, setCurrentPageSize] = useState(10);
   const [searchString] = useState('');
+
+  const session = useSession();
+  const canEditPatientList = userHasAccess('Edit Cohorts in Cohort Module', session?.user);
 
   const { listDetails, mutateListDetails } = usePatientListDetails(patientListUuid);
   const { listMembers, isLoadingListMembers, mutateListMembers } = usePatientListMembers(
@@ -149,27 +154,29 @@ const ListDetails = () => {
             {listDetails?.startDate ? formatDate(parseDate(listDetails.startDate)) : null}
           </div>
         </div>
-        <div className={styles.overflowMenu}>
-          <CustomOverflowMenu
-            menuTitle={
-              <>
-                <span className={styles.actionsButtonText}>{t('actions', 'Actions')}</span>{' '}
-                <OverflowMenuVertical size={16} style={{ marginLeft: '0.5rem' }} />
-              </>
-            }>
-            <CustomOverflowMenuItem
-              className={styles.menuItem}
-              itemText={t('editNameDescription', 'Edit name or description')}
-              onClick={handleEditPatientList}
-            />
-            <CustomOverflowMenuItem
-              className={styles.menuItem}
-              isDelete
-              itemText={t('deletePatientList', 'Delete patient list')}
-              onClick={handleDeletePatientList}
-            />
-          </CustomOverflowMenu>
-        </div>
+        {canEditPatientList && (
+          <div className={styles.overflowMenu}>
+            <CustomOverflowMenu
+              menuTitle={
+                <>
+                  <span className={styles.actionsButtonText}>{t('actions', 'Actions')}</span>{' '}
+                  <OverflowMenuVertical size={16} style={{ marginLeft: '0.5rem' }} />
+                </>
+              }>
+              <CustomOverflowMenuItem
+                className={styles.menuItem}
+                itemText={t('editNameDescription', 'Edit name or description')}
+                onClick={handleEditPatientList}
+              />
+              <CustomOverflowMenuItem
+                className={styles.menuItem}
+                isDelete
+                itemText={t('deletePatientList', 'Delete patient list')}
+                onClick={handleDeletePatientList}
+              />
+            </CustomOverflowMenu>
+          </div>
+        )}
       </section>
       <section>
         <div className={styles.tableContainer}>

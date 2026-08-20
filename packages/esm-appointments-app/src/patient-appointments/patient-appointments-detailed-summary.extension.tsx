@@ -9,6 +9,8 @@ import {
   ErrorCard,
   launchWorkspace2,
   useLayoutType,
+  useSession,
+  userHasAccess,
 } from '@openmrs/esm-framework';
 import { type Appointment } from '../types';
 import { usePatientAppointments } from './patient-appointments.resource';
@@ -53,6 +55,9 @@ const PatientAppointmentsDetailedSummary: React.FC<PatientAppointmentsDetailProp
   };
 
   const handleLaunchAppointmentForm = launchAppointmentForm || defaultLaunchAppointmentForm;
+  const session = useSession();
+  const canManageAppointments =
+    userHasAccess('Manage Appointments', session?.user) || userHasAccess('Manage Own Appointments', session?.user);
 
   const [contentSwitcherValue, setContentSwitcherValue] = useState(0);
   const startDate = useMemo(() => dayjs().subtract(6, 'month').toISOString(), []);
@@ -97,13 +102,15 @@ const PatientAppointmentsDetailedSummary: React.FC<PatientAppointmentsDetailProp
               <Switch name={'past'}>{t('past', 'Past')}</Switch>
             </ContentSwitcher>
             <div className={styles.divider}>|</div>
-            <Button
-              kind="ghost"
-              renderIcon={(props) => <AddIcon size={16} {...props} />}
-              iconDescription={t('addAppointments', 'Add Appointments')}
-              onClick={() => handleLaunchAppointmentForm(patientUuid)}>
-              {t('add', 'Add')}
-            </Button>
+            {canManageAppointments && (
+              <Button
+                kind="ghost"
+                renderIcon={(props) => <AddIcon size={16} {...props} />}
+                iconDescription={t('addAppointments', 'Add Appointments')}
+                onClick={() => handleLaunchAppointmentForm(patientUuid)}>
+                {t('add', 'Add')}
+              </Button>
+            )}
           </div>
         </CardHeader>
         {(() => {

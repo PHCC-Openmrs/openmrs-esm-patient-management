@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@carbon/react';
 import { useTranslation } from 'react-i18next';
-import { navigate, showModal, useConfig } from '@openmrs/esm-framework';
+import { navigate, showModal, useConfig, useSession, userHasAccess } from '@openmrs/esm-framework';
 import { type Appointment, AppointmentStatus } from '../../types';
 import { type ConfigObject } from '../../config-schema';
 import CheckInButton from './checkin-button.component';
@@ -16,6 +16,9 @@ interface AppointmentsActionsProps {
 const AppointmentsActions: React.FC<AppointmentsActionsProps> = ({ appointment, hasActiveVisit, mutateVisits }) => {
   const { t } = useTranslation();
   const { checkInButton, checkOutButton } = useConfig<ConfigObject>();
+  const session = useSession();
+  const canManageAppointments =
+    userHasAccess('Manage Appointments', session?.user) || userHasAccess('Manage Own Appointments', session?.user);
 
   const patientUuid = appointment.patient.uuid;
 
@@ -46,7 +49,7 @@ const AppointmentsActions: React.FC<AppointmentsActionsProps> = ({ appointment, 
   };
 
   const renderActions = () => {
-    if (isCancelled || isCompleted) {
+    if (isCancelled || isCompleted || !canManageAppointments) {
       return null;
     }
 
