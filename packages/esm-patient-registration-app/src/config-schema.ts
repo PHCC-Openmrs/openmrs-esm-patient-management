@@ -23,6 +23,9 @@ export interface FieldDefinition {
     required: boolean;
     matches?: string;
   };
+  // A regex that must match regardless of config, so a config-provided `validation.matches`
+  // can only ever narrow validation further, never disable a check the app considers mandatory.
+  mandatoryMatches?: string;
   locationTag?: string;
   answerConceptSetUuid?: string;
   customConceptAnswers?: Array<CustomConceptAnswer>;
