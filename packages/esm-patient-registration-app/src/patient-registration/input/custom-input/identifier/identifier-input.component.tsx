@@ -109,7 +109,8 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
     }
   };
 
-  const showEditButton = !required && hideInputField && (!!initialValue || manualEntryEnabled);
+  const showEditButton =
+    !required && !identifierType?.isPrimary && hideInputField && (!!initialValue || manualEntryEnabled);
   const showResetButton =
     (!!initialValue && initialValue !== identifierValue) || (!hideInputField && manualEntryEnabled);
   return (
@@ -173,19 +174,21 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
             </Button>
           </UserHasAccess>
         )}
-        {!patientIdentifier.required && !defaultPatientIdentifierTypesMap[patientIdentifier.identifierTypeUuid] && (
-          <UserHasAccess privilege="Delete Patient Identifiers">
-            <Button
-              size="md"
-              kind="ghost"
-              onClick={handleDelete}
-              iconDescription={t('deleteIdentifierTooltip', 'Delete')}
-              disabled={disabled}
-              hasIconOnly>
-              <TrashCan size={16} />
-            </Button>
-          </UserHasAccess>
-        )}
+        {!patientIdentifier.required &&
+          !identifierType?.isPrimary &&
+          !defaultPatientIdentifierTypesMap[patientIdentifier.identifierTypeUuid] && (
+            <UserHasAccess privilege="Delete Patient Identifiers">
+              <Button
+                size="md"
+                kind="ghost"
+                onClick={handleDelete}
+                iconDescription={t('deleteIdentifierTooltip', 'Delete')}
+                disabled={disabled}
+                hasIconOnly>
+                <TrashCan size={16} />
+              </Button>
+            </UserHasAccess>
+          )}
       </div>
     </div>
   );
