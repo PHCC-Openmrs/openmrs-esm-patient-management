@@ -22,6 +22,8 @@ import {
   showModal,
   useConfig,
   useLayoutType,
+  useSession,
+  userHasAccess,
 } from '@openmrs/esm-framework';
 import { type ConfigObject } from '../config-schema';
 import { useOverdueVisits } from '../metrics/metrics.resource';
@@ -35,6 +37,8 @@ function OverdueVisits() {
   const { customPatientChartUrl } = useConfig<ConfigObject>();
   const { overdueVisits: allOverdueVisits, isLoading, mutate } = useOverdueVisits();
   const { selectedProgramUuid } = useServiceQueuesStore();
+  const session = useSession();
+  const canEndVisit = userHasAccess('Manage Queue Entries', session?.user);
 
   // Program enrollment isn't part of the visit representation, so it can't be filtered
   // server-side -- only fetched (and filtered) once we know which patients have overdue visits.
@@ -74,7 +78,7 @@ function OverdueVisits() {
     visitStarted: formatDatetime(new Date(visit.startDatetime)),
     daysOpen: Math.max(1, dayjs().diff(dayjs(visit.startDatetime), 'day')),
     location: visit.location?.display ?? '--',
-    actions: (
+    actions: canEndVisit ? (
       <Button
         kind="danger--tertiary"
         size={isDesktop(layout) ? 'sm' : 'lg'}
@@ -89,7 +93,7 @@ function OverdueVisits() {
         }}>
         {t('endVisit_title', 'End Visit')}
       </Button>
-    ),
+    ) : null,
   }));
 
   if (isLoading) {
