@@ -95,7 +95,10 @@ const QueueRoomForm: React.FC<Workspace2DefinitionProps<QueueRoomWorkspaceProps>
 
   const watchedQueueLocationId = watch('queueLocation');
   const { queues } = useQueues(isEditMode ? undefined : watchedQueueLocationId);
-  const { queueLocations } = useQueueLocations();
+  // Configuring queue rooms is a system-administration task, not the "where am I working"
+  // operational context that location restriction targets - an admin must be able to configure
+  // rooms for any location regardless of their own assigned locations.
+  const { queueLocations } = useQueueLocations(false);
 
   const handleSaveQueueRoom = async (data: QueueRoomFormData) => {
     try {

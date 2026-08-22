@@ -62,7 +62,10 @@ const QueueForm: React.FC<Workspace2DefinitionProps<QueueWorkspaceProps>> = ({ c
   const { t } = useTranslation();
   const { mutate } = useSWRConfig();
   const { queueConcepts } = useServiceConcepts();
-  const { queueLocations } = useQueueLocations();
+  // Configuring queues is a system-administration task, not the "where am I working"
+  // operational context that location restriction targets - an admin must be able to configure
+  // queues for any location regardless of their own assigned locations.
+  const { queueLocations } = useQueueLocations(false);
   const queueToEdit = workspaceProps?.queue;
   const isEditMode = !!queueToEdit;
 
