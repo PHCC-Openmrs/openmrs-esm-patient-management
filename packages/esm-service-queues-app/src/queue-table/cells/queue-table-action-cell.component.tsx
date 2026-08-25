@@ -230,9 +230,15 @@ export const queueTableActionColumn: QueueTableColumnFunction = (key, header, co
     const actionPropsByKey = useActionPropsByKey();
     const { buttons, overflowMenu } = config.actions;
     const session = useSession();
+    const {
+      concepts: { defaultFinishedServiceStatus },
+    } = useConfig<ConfigObject>();
     // All queue-entry actions (call/move/transition/edit/remove/delete/undo/auto-assign)
     // are gated by this single backend privilege - there's no per-action split.
     const canManageQueueEntries = userHasAccess('Manage Queue Entries', session?.user);
+    // Once a queue entry has finished service there's nothing left to do with it - no moving,
+    // transitioning, or editing a patient who has already been seen.
+    const isFinishedService = queueEntry.status?.uuid === defaultFinishedServiceStatus;
 
     const [buttonComponents, overflowMenuComponents] = useMemo(() => {
       const declaredButtonComponents = buttons
@@ -280,7 +286,7 @@ export const queueTableActionColumn: QueueTableColumnFunction = (key, header, co
       return [[...declaredButtonComponents, fallbackActionComponent], overflowMenuComponents];
     }, [buttons, overflowMenu, queueEntry, actionPropsByKey]);
 
-    if (!canManageQueueEntries) {
+    if (!canManageQueueEntries || isFinishedService) {
       return null;
     }
 
