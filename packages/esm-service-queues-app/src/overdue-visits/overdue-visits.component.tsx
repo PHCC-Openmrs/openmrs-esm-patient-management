@@ -38,7 +38,7 @@ function OverdueVisits() {
   const { overdueVisits: allOverdueVisits, isLoading, mutate } = useOverdueVisits();
   const { selectedProgramUuid } = useServiceQueuesStore();
   const session = useSession();
-  const canEndVisit = userHasAccess('Manage Queue Entries', session?.user);
+  const canEndVisit = userHasAccess('Edit Visits', session?.user);
 
   // Program enrollment isn't part of the visit representation, so it can't be filtered
   // server-side -- only fetched (and filtered) once we know which patients have overdue visits.
