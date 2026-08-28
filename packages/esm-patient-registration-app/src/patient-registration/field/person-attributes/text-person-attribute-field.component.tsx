@@ -10,6 +10,7 @@ export interface TextPersonAttributeFieldProps {
   id: string;
   personAttributeType: PersonAttributeTypeResponse;
   validationRegex?: string;
+  mandatoryMatchesRegex?: string;
   label?: string;
   required?: boolean;
   hideOptionalLabel?: boolean;
@@ -20,6 +21,7 @@ export function TextPersonAttributeField({
   id,
   personAttributeType,
   validationRegex,
+  mandatoryMatchesRegex,
   label,
   required,
   hideOptionalLabel,
@@ -28,7 +30,21 @@ export function TextPersonAttributeField({
   const { t } = useTranslation();
 
   const validateInput = (value: string) => {
-    if (!value || !validationRegex || validationRegex === '' || typeof validationRegex !== 'string' || value === '') {
+    if (!value || value === '') {
+      return;
+    }
+
+    // Checked first and independently of validationRegex, so a config-provided
+    // validationRegex can only add further restrictions, never bypass this one.
+    if (
+      mandatoryMatchesRegex &&
+      typeof mandatoryMatchesRegex === 'string' &&
+      !new RegExp(mandatoryMatchesRegex).test(value)
+    ) {
+      return t('invalidInput', 'Invalid Input');
+    }
+
+    if (!validationRegex || validationRegex === '' || typeof validationRegex !== 'string') {
       return;
     }
     const regex = new RegExp(validationRegex);
