@@ -35,9 +35,15 @@ function DefaultQueueTable() {
 function QueueTableSection() {
   const { t } = useTranslation();
   const layout = useLayoutType();
+  const { concepts } = useConfig<ConfigObject>();
   const { selectedServiceUuid, selectedQueueLocationUuid, selectedQueueStatusUuid, selectedProgramUuid } =
     useServiceQueuesStore();
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Before any explicit choice is made, default to "In Service" rather than every status - a
+  // freshly-loaded queue should read as "who's being attended to right now", not lump waiting
+  // and finished patients in together.
+  const effectiveStatusUuid = selectedQueueStatusUuid || concepts.defaultTransitionStatus;
 
   const searchCriteria = useMemo(() => {
     return {
@@ -46,9 +52,9 @@ function QueueTableSection() {
       // ended entries only makes sense for the unfiltered "Any" view; a specific status filter (e.g.
       // "Finished Service") should still surface today's matches even though the backend marked them ended.
       isEnded: selectedQueueStatusUuid ? undefined : false,
-      status: selectedQueueStatusUuid,
+      status: effectiveStatusUuid,
     };
-  }, [selectedServiceUuid, selectedQueueStatusUuid]);
+  }, [selectedServiceUuid, selectedQueueStatusUuid, effectiveStatusUuid]);
 
   const { queueEntries, isLoading, error, isValidating } = useQueueEntries(searchCriteria);
 
@@ -157,13 +163,22 @@ function StatusDropdownFilter() {
     [statuses, concepts.defaultStatusConceptUuid],
   );
 
+  // "In Service" (defaultTransitionStatus) is what the unfiltered query above now actually
+  // returns by default (see QueueTableSection) -- so before any explicit selection is made, the
+  // dropdown should label itself with that status rather than "All", since "All" isn't a real
+  // selectable option and doesn't describe what's actually on screen.
+  const defaultStatus = useMemo(
+    () => (statuses ?? []).find((status) => status?.uuid === concepts.defaultTransitionStatus),
+    [statuses, concepts.defaultTransitionStatus],
+  );
+
   return (
     <div className={styles.filterContainer}>
       <Dropdown
         id="statusFilter"
         items={filteredStatuses}
         itemToString={(item) => (item ? item.display : '')}
-        label={selectedQueueStatusDisplay ?? t('all', 'All')}
+        label={selectedQueueStatusDisplay ?? defaultStatus?.display ?? t('all', 'All')}
         onChange={handleStatusChange}
         size={isDesktop(layout) ? 'sm' : 'lg'}
         titleText={t('showPatientsWithStatus', 'Show patients with status:')}
