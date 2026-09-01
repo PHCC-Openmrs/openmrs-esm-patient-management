@@ -9,7 +9,7 @@ export default function CompletedVisitsExtension() {
 
   return (
     <MetricsCard>
-      <MetricsCardHeader title={t('visitsCompletedToday', 'Visits completed today')} />
+      <MetricsCardHeader title={t('visitsCompletedToday', 'Finished Service')} />
       <MetricsCardBody>
         <MetricsCardItem label={t('visits', 'Visits')} value={isLoading ? '--' : completedVisitsCount} />
       </MetricsCardBody>

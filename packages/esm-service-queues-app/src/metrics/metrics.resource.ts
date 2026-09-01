@@ -1,83 +1,77 @@
-import { useSession, type Visit, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
+import { useMemo } from 'react';
+import { useConfig, useSession, type Visit, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
 import dayjs from 'dayjs';
 import useSWR from 'swr';
+import { type ConfigObject } from '../config-schema';
+import { useQueueEntries } from '../hooks/useQueueEntries';
 
-export function useActiveVisits() {
-  const currentUserSession = useSession();
-  const startDate = dayjs().format('YYYY-MM-DD');
-  const sessionLocation = currentUserSession?.sessionLocation?.uuid;
+/**
+ * Count of queue entries currently "In Service" (i.e. today's checked-in patients who are
+ * actively being attended to right now) - the same population the "Patients Currently In
+ * Queue" table shows when filtered to "In Service", not a separately-tallied /visit count that
+ * can drift from what that table displays.
+ */
+export function useCheckedInPatients() {
+  const { concepts } = useConfig<ConfigObject>();
+  const { sessionLocation } = useSession();
 
-  const customRepresentation =
-    'custom:(uuid,patient:(uuid,identifiers:(identifier,uuid),person:(age,display,gender,uuid)),' +
-    'visitType:(uuid,name,display),location:(uuid,name,display),startDatetime,' +
-    'stopDatetime)&fromStartDate=' +
-    startDate +
-    '&location=' +
-    sessionLocation;
-  const url = `${restBaseUrl}/visit?includeInactive=false&v=${customRepresentation}`;
-  const { data, error, isLoading, isValidating } = useSWR<{ data: { results: Array<Visit> } }, Error>(
-    sessionLocation ? url : null,
-    openmrsFetch,
-  );
-
-  // Create a Set to store unique patient UUIDs
-  const uniquePatientUUIDs = new Set();
-
-  data?.data?.results.forEach((visit) => {
-    const patientUUID = visit.patient?.uuid;
-    const isToday = dayjs(visit.startDatetime).isToday();
-    if (patientUUID && isToday) {
-      uniquePatientUUIDs.add(patientUUID);
-    }
+  const { queueEntries, isLoading, isValidating } = useQueueEntries({
+    status: concepts.defaultTransitionStatus,
+    isEnded: false,
+    location: sessionLocation?.uuid,
   });
 
+  // Dedupe by patient in case a patient somehow ends up with more than one open entry.
+  const checkedInPatientsCount = useMemo(
+    () => new Set((queueEntries ?? []).map((entry) => entry.patient?.uuid).filter(Boolean)).size,
+    [queueEntries],
+  );
+
   return {
-    activeVisitsCount: uniquePatientUUIDs.size,
+    checkedInPatientsCount,
     isLoading,
-    error,
     isValidating,
   };
 }
 
+/**
+ * Count (and average duration) of visits whose queue entry moved to "Finished Service" today -
+ * mirrors the queue table's own Finished Service view. isEnded is intentionally omitted: the
+ * backend only ever assigns this status to entries it has already ended, so isEnded:false would
+ * hide every match (see default-queue-table.component.tsx for the same reasoning).
+ */
 export function useCompletedVisits() {
-  const currentUserSession = useSession();
-  const startDate = dayjs().format('YYYY-MM-DD');
-  const sessionLocation = currentUserSession?.sessionLocation?.uuid;
+  const { concepts } = useConfig<ConfigObject>();
+  const { sessionLocation } = useSession();
 
-  const customRepresentation =
-    'custom:(uuid,patient:(uuid,identifiers:(identifier,uuid),person:(age,display,gender,uuid)),' +
-    'visitType:(uuid,name,display),location:(uuid,name,display),startDatetime,' +
-    'stopDatetime)&fromStartDate=' +
-    startDate +
-    '&location=' +
-    sessionLocation;
-  // includeInactive=true is required here (unlike useActiveVisits) because ended (stopped) visits
-  // are otherwise excluded entirely from the response - there'd be nothing to filter for completion.
-  const url = `${restBaseUrl}/visit?includeInactive=true&v=${customRepresentation}`;
-  const { data, error, isLoading, isValidating } = useSWR<{ data: { results: Array<Visit> } }, Error>(
-    sessionLocation ? url : null,
-    openmrsFetch,
+  const { queueEntries, isLoading, isValidating } = useQueueEntries({
+    status: concepts.defaultFinishedServiceStatus,
+    location: sessionLocation?.uuid,
+  });
+
+  const completedToday = useMemo(
+    () => (queueEntries ?? []).filter((entry) => entry.endedAt && dayjs(entry.endedAt).isSame(dayjs(), 'day')),
+    [queueEntries],
   );
 
-  const completedVisitsToday =
-    data?.data?.results.filter((visit) => visit.stopDatetime && dayjs(visit.startDatetime).isToday()) ?? [];
+  const completedVisitsCount = completedToday.length;
 
-  const completedVisitsCount = completedVisitsToday.length;
+  const averageVisitDurationInMinutes = useMemo(() => {
+    const durations = completedToday
+      .map((entry) => {
+        const start = entry.visit?.startDatetime;
+        const stop = entry.visit?.stopDatetime;
+        return start && stop ? dayjs(stop).diff(dayjs(start), 'minute') : null;
+      })
+      .filter((duration): duration is number => duration != null);
 
-  const averageVisitDurationInMinutes = completedVisitsToday.length
-    ? Math.round(
-        completedVisitsToday.reduce(
-          (totalMinutes, visit) => totalMinutes + dayjs(visit.stopDatetime).diff(dayjs(visit.startDatetime), 'minute'),
-          0,
-        ) / completedVisitsToday.length,
-      )
-    : null;
+    return durations.length ? Math.round(durations.reduce((sum, duration) => sum + duration, 0) / durations.length) : null;
+  }, [completedToday]);
 
   return {
     completedVisitsCount,
     averageVisitDurationInMinutes,
     isLoading,
-    error,
     isValidating,
   };
 }
