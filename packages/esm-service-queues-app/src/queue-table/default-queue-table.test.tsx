@@ -1,5 +1,5 @@
 import { getDefaultsFromConfigSchema, useConfig, useSession } from '@openmrs/esm-framework';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { screen } from '@testing-library/react';
 import {
   mockLocationSurgery,
@@ -14,6 +14,7 @@ import { renderWithSwr } from 'tools';
 import { type ConfigObject, configSchema } from '../config-schema';
 import { useQueueLocations } from '../create-queue-entry/hooks/useQueueLocations';
 import { useQueueEntries } from '../hooks/useQueueEntries';
+import { updateSelectedQueueStatus } from '../store/store';
 import DefaultQueueTable from '../queue-table/default-queue-table.component';
 
 const mockUseConfig = vi.mocked(useConfig<ConfigObject>);
@@ -45,6 +46,54 @@ describe('DefaultQueueTable', () => {
       visitQueueNumberAttributeUuid: 'c61ce16f-272a-41e7-9924-4c555d0932c5',
     });
     mockUseSession.mockReturnValue(mockSession.data);
+    mockQueueLocations.mockReturnValue({ queueLocations: [], isLoading: false, error: null });
+    mockUseQueueEntries.mockReturnValue({
+      queueEntries: [],
+      isLoading: false,
+      error: undefined,
+      totalCount: 0,
+      isValidating: false,
+      mutate: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    // Selected queue status is persisted in session storage via the global service-queues store,
+    // so it must be reset explicitly to avoid leaking into other tests.
+    updateSelectedQueueStatus(undefined, undefined);
+  });
+
+  it('excludes ended entries (isEnded: false) when no status filter is selected', async () => {
+    rendeDefaultQueueTable();
+    await screen.findByRole('table');
+
+    expect(mockUseQueueEntries).toHaveBeenLastCalledWith(expect.objectContaining({ isEnded: false }));
+  });
+
+  it('still excludes already-ended entries when a non-terminal status (e.g. "In Service") is selected', async () => {
+    // Otherwise a superseded/finished entry that happens to match that status keeps showing as active.
+    updateSelectedQueueStatus('some-in-service-status-uuid', 'In Service');
+
+    rendeDefaultQueueTable();
+    await screen.findByRole('table');
+
+    expect(mockUseQueueEntries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isEnded: false, status: 'some-in-service-status-uuid' }),
+    );
+  });
+
+  it('relaxes the isEnded filter when the terminal "Finished Service" status is selected', async () => {
+    // The backend only ever sets this status on entries it has already ended, so requiring
+    // isEnded: false here would hide every match.
+    const { defaultFinishedServiceStatus } = getDefaultsFromConfigSchema(configSchema).concepts;
+    updateSelectedQueueStatus(defaultFinishedServiceStatus, 'Finished Service');
+
+    rendeDefaultQueueTable();
+    await screen.findByRole('table');
+
+    expect(mockUseQueueEntries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isEnded: undefined, status: defaultFinishedServiceStatus }),
+    );
   });
 
   it('renders an empty state view if data is unavailable', async () => {

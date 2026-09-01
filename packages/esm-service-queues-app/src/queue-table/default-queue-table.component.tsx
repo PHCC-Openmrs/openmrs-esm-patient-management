@@ -45,16 +45,22 @@ function QueueTableSection() {
   // and finished patients in together.
   const effectiveStatusUuid = selectedQueueStatusUuid || concepts.defaultTransitionStatus;
 
+  // "Finished Service" is the one status the backend only ever sets on entries it has already
+  // ended, so requesting isEnded: false there would hide every match - see searchCriteria below.
+  const isFinishedServiceStatusSelected = selectedQueueStatusUuid === concepts.defaultFinishedServiceStatus;
+
   const searchCriteria = useMemo(() => {
+    // The backend auto-ends a queue entry whenever its visit ends, regardless of status, and also
+    // ends an entry once the patient moves on to a later queue/room. Excluding ended entries is
+    // therefore correct for every status except the terminal "Finished Service" one. Every other
+    // status (e.g. "In Service", "Waiting") must still exclude ended entries, or an
+    // already-finished/superseded entry keeps showing as if still active.
     return {
       service: selectedServiceUuid,
-      // The backend auto-ends a queue entry whenever its visit ends, regardless of status. Excluding
-      // ended entries only makes sense for the unfiltered "Any" view; a specific status filter (e.g.
-      // "Finished Service") should still surface today's matches even though the backend marked them ended.
-      isEnded: selectedQueueStatusUuid ? undefined : false,
+      isEnded: isFinishedServiceStatusSelected ? undefined : false,
       status: effectiveStatusUuid,
     };
-  }, [selectedServiceUuid, selectedQueueStatusUuid, effectiveStatusUuid]);
+  }, [selectedServiceUuid, isFinishedServiceStatusSelected, effectiveStatusUuid]);
 
   const { queueEntries, isLoading, error, isValidating } = useQueueEntries(searchCriteria);
 
