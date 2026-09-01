@@ -1,14 +1,17 @@
 import React from 'react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { getDefaultsFromConfigSchema, useConfig } from '@openmrs/esm-framework';
-import { mockQueueEntryAlice, mockQueues } from '__mocks__';
+import { mockQueueEntryAlice, mockQueueTriage, mockQueues, mockStatusInService } from '__mocks__';
 import { renderWithSwr } from 'tools';
 import { type ConfigObject, configSchema } from '../config-schema';
+import { transitionQueueEntry } from './queue-entry-actions.resource';
 import MoveQueueEntryModal from './move-queue-entry.modal';
 
 const mockMutateQueueEntries = vi.fn();
 const mockUseConfig = vi.mocked(useConfig<ConfigObject>);
+const mockTransitionQueueEntry = vi.mocked(transitionQueueEntry);
 
 vi.mock('../hooks/useQueues', () => ({
   useQueues: vi.fn().mockReturnValue({ queues: mockQueues }),
@@ -18,6 +21,10 @@ vi.mock('../hooks/useQueueEntries', () => ({
   useMutateQueueEntries: () => ({
     mutateQueueEntries: mockMutateQueueEntries,
   }),
+}));
+
+vi.mock('./queue-entry-actions.resource', () => ({
+  transitionQueueEntry: vi.fn(),
 }));
 
 const mockUseQueueEntry = vi.fn();
@@ -104,5 +111,29 @@ describe('MoveQueueEntryModal', () => {
 
     expect(screen.getByRole('button', { name: 'Move' })).toBeInTheDocument();
     expect(screen.queryByText('Queue entry is no longer active')).not.toBeInTheDocument();
+  });
+
+  it('keeps the entry "In Service" after moving to a different queue, instead of resetting to the new queue\'s default status', async () => {
+    const user = userEvent.setup();
+    mockUseQueueEntry.mockReturnValue({
+      queueEntry: mockQueueEntryAlice,
+      error: null,
+      isLoading: false,
+    });
+    mockTransitionQueueEntry.mockResolvedValue({ status: 200 } as any);
+
+    renderWithSwr(<MoveQueueEntryModal queueEntry={mockQueueEntryAlice} closeModal={closeModal} />);
+
+    // mockQueueEntryAlice starts "In Service" in Surgery; move it to Triage, a queue whose
+    // default status would otherwise be "Waiting".
+    await user.click(screen.getByRole('radio', { name: new RegExp(mockQueueTriage.display) }));
+    await user.click(screen.getByRole('button', { name: 'Move' }));
+
+    expect(mockTransitionQueueEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        newQueue: mockQueueTriage.uuid,
+        newStatus: mockStatusInService.uuid,
+      }),
+    );
   });
 });

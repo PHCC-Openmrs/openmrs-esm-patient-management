@@ -149,9 +149,18 @@ export const QueueEntryActionModal: React.FC<QueueEntryActionModalProps> = ({
 
     const { allowedStatuses, allowedPriorities } = newSelectedQueue;
     const newQueueHasCurrentPriority = allowedPriorities.find((s) => s.uuid === formState.selectedPriority);
+    // Moving a patient to a different room/queue is not itself a status change - e.g. a Front
+    // Desk -> Doctor Room move should keep the entry "In Service", not silently reset it to
+    // whatever status the new queue happens to default to. Only fall back to the new queue's
+    // default when the current status isn't even a valid option there.
+    const newQueueHasCurrentStatus = allowedStatuses.find((s) => s.uuid === formState.selectedStatus);
     const defaultStatusUuid = config.concepts.defaultStatusConceptUuid;
     const newQueueHasDefaultStatus = allowedStatuses.find((s) => s.uuid === defaultStatusUuid);
-    const newStatus = newQueueHasDefaultStatus ? defaultStatusUuid : allowedStatuses[0]?.uuid;
+    const newStatus = newQueueHasCurrentStatus
+      ? formState.selectedStatus
+      : newQueueHasDefaultStatus
+        ? defaultStatusUuid
+        : allowedStatuses[0]?.uuid;
 
     setFormState((prev) => ({
       ...prev,
