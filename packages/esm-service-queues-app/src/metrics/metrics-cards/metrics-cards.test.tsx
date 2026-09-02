@@ -2,7 +2,7 @@ import React from 'react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
 import { getDefaultsFromConfigSchema, useConfig, useSession } from '@openmrs/esm-framework';
-import { mockSession, mockStatusInService, mockPatientAlice, mockPatientBrian } from '__mocks__';
+import { mockSession, mockPatientAlice, mockPatientBrian } from '__mocks__';
 import { renderWithSwr } from 'tools';
 import { type ConfigObject, configSchema } from '../../config-schema';
 import { useQueueEntries } from '../../hooks/useQueueEntries';
@@ -14,6 +14,10 @@ import AverageVisitDurationExtension from './average-visit-duration.extension';
 const mockUseConfig = vi.mocked(useConfig<ConfigObject>);
 const mockUseSession = vi.mocked(useSession);
 const mockUseQueueEntries = vi.mocked(useQueueEntries);
+const defaultConfig = getDefaultsFromConfigSchema(configSchema);
+const { defaultTransitionStatus, defaultFinishedServiceStatus } = defaultConfig.concepts;
+const inServiceStatus = { uuid: defaultTransitionStatus, display: 'In Service' };
+const finishedServiceStatus = { uuid: defaultFinishedServiceStatus, display: 'Finished Service' };
 
 vi.mock('../../hooks/useQueueEntries', async () => ({
   ...((await vi.importActual('../../hooks/useQueueEntries')) as object),
@@ -32,7 +36,7 @@ function makeEntry(overrides: Partial<QueueEntry>): QueueEntry {
     providerWaitingFor: null,
     queue: null,
     startedAt: new Date().toISOString(),
-    status: mockStatusInService,
+    status: inServiceStatus,
     visit: null,
     sortWeight: 0,
     queueComingFrom: null,
@@ -42,15 +46,35 @@ function makeEntry(overrides: Partial<QueueEntry>): QueueEntry {
 }
 
 describe('service queues metrics cards', () => {
-  const defaultConfig = getDefaultsFromConfigSchema(configSchema);
-
   beforeEach(() => {
     mockUseConfig.mockReturnValue(defaultConfig as ConfigObject);
     mockUseSession.mockReturnValue(mockSession.data);
   });
 
+  it('fetches both In Service and Finished Service in one request, with no isEnded filter, and the session location', () => {
+    mockUseQueueEntries.mockReturnValue({
+      queueEntries: [],
+      isLoading: false,
+      isValidating: false,
+      error: undefined,
+      totalCount: 0,
+      mutate: vi.fn(),
+    });
+
+    renderWithSwr(<CheckedInPatientsExtension />);
+
+    const criteria = mockUseQueueEntries.mock.calls[0][0];
+    expect(criteria).not.toHaveProperty('isEnded');
+    expect(criteria).toEqual(
+      expect.objectContaining({
+        status: [defaultTransitionStatus, defaultFinishedServiceStatus],
+        location: mockSession.data.sessionLocation.uuid,
+      }),
+    );
+  });
+
   describe('CheckedInPatientsExtension', () => {
-    it('shows the count of distinct patients with an open "In Service" entry', async () => {
+    it('shows the count of distinct patients with an "In Service" entry', async () => {
       mockUseQueueEntries.mockReturnValue({
         queueEntries: [makeEntry({ uuid: 'e1', patient: mockPatientAlice }), makeEntry({ uuid: 'e2', patient: mockPatientBrian })],
         isLoading: false,
@@ -106,25 +130,48 @@ describe('service queues metrics cards', () => {
       expect(screen.getByText('1')).toBeInTheDocument();
     });
 
-    it('queries with isEnded: false and the session location, scoped to the "In Service" status', () => {
+    it('does not count a patient whose only entry today is Finished Service', async () => {
       mockUseQueueEntries.mockReturnValue({
-        queueEntries: [],
+        queueEntries: [makeEntry({ uuid: 'e1', patient: mockPatientAlice, status: finishedServiceStatus })],
         isLoading: false,
         isValidating: false,
         error: undefined,
-        totalCount: 0,
+        totalCount: 1,
         mutate: vi.fn(),
       });
 
       renderWithSwr(<CheckedInPatientsExtension />);
 
-      expect(mockUseQueueEntries).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: defaultConfig.concepts.defaultTransitionStatus,
-          isEnded: false,
-          location: mockSession.data.sessionLocation.uuid,
-        }),
-      );
+      expect(await screen.findByText('In Service')).toBeInTheDocument();
+      expect(screen.getByText('0')).toBeInTheDocument();
+    });
+
+    it('counts a patient under "In Service" once they start a new visit after an earlier one finished today', async () => {
+      // The exact reported scenario: finish one visit, start a new one the same day - the
+      // patient should now count as In Service, not still (or additionally) as Finished Service.
+      const anHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      mockUseQueueEntries.mockReturnValue({
+        queueEntries: [
+          makeEntry({
+            uuid: 'finished-earlier',
+            patient: mockPatientAlice,
+            status: finishedServiceStatus,
+            startedAt: anHourAgo,
+            endedAt: anHourAgo,
+          }),
+          makeEntry({ uuid: 'in-service-now', patient: mockPatientAlice, status: inServiceStatus }),
+        ],
+        isLoading: false,
+        isValidating: false,
+        error: undefined,
+        totalCount: 2,
+        mutate: vi.fn(),
+      });
+
+      renderWithSwr(<CheckedInPatientsExtension />);
+
+      expect(await screen.findByText('In Service')).toBeInTheDocument();
+      expect(screen.getByText('1')).toBeInTheDocument();
     });
   });
 
@@ -133,10 +180,16 @@ describe('service queues metrics cards', () => {
       const today = new Date().toISOString();
       mockUseQueueEntries.mockReturnValue({
         queueEntries: [
-          makeEntry({ uuid: 'today', patient: mockPatientAlice, visit: { startDatetime: today } as any }),
+          makeEntry({
+            uuid: 'today',
+            patient: mockPatientAlice,
+            status: finishedServiceStatus,
+            visit: { startDatetime: today } as any,
+          }),
           makeEntry({
             uuid: 'yesterday',
             patient: mockPatientBrian,
+            status: finishedServiceStatus,
             visit: { startDatetime: '2020-01-01T00:00:00.000+0000' } as any,
           }),
         ],
@@ -160,6 +213,7 @@ describe('service queues metrics cards', () => {
         queueEntries: [
           makeEntry({
             uuid: 'overdue-closed-today',
+            status: finishedServiceStatus,
             startedAt: '2020-01-01T00:00:00.000+0000',
             endedAt: new Date().toISOString(),
             visit: { startDatetime: '2020-01-01T00:00:00.000+0000', stopDatetime: new Date().toISOString() } as any,
@@ -182,8 +236,18 @@ describe('service queues metrics cards', () => {
       const today = new Date().toISOString();
       mockUseQueueEntries.mockReturnValue({
         queueEntries: [
-          makeEntry({ uuid: 'visit-1', patient: mockPatientAlice, visit: { startDatetime: today } as any }),
-          makeEntry({ uuid: 'visit-2', patient: mockPatientAlice, visit: { startDatetime: today } as any }),
+          makeEntry({
+            uuid: 'visit-1',
+            patient: mockPatientAlice,
+            status: finishedServiceStatus,
+            visit: { startDatetime: today } as any,
+          }),
+          makeEntry({
+            uuid: 'visit-2',
+            patient: mockPatientAlice,
+            status: finishedServiceStatus,
+            visit: { startDatetime: today } as any,
+          }),
         ],
         isLoading: false,
         isValidating: false,
@@ -198,23 +262,33 @@ describe('service queues metrics cards', () => {
       expect(screen.getByText('1')).toBeInTheDocument();
     });
 
-    it('does not send isEnded, since the backend only sets this status on already-ended entries', () => {
+    it('no longer counts a patient as completed once they start a new visit the same day', async () => {
+      // The exact reported scenario: a patient who finished one visit and then started a new,
+      // still-active one should disappear from "Finished Service" - they're In Service now.
+      const anHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
       mockUseQueueEntries.mockReturnValue({
-        queueEntries: [],
+        queueEntries: [
+          makeEntry({
+            uuid: 'finished-earlier',
+            patient: mockPatientAlice,
+            status: finishedServiceStatus,
+            startedAt: anHourAgo,
+            endedAt: anHourAgo,
+            visit: { startDatetime: anHourAgo, stopDatetime: anHourAgo } as any,
+          }),
+          makeEntry({ uuid: 'in-service-now', patient: mockPatientAlice, status: inServiceStatus }),
+        ],
         isLoading: false,
         isValidating: false,
         error: undefined,
-        totalCount: 0,
+        totalCount: 2,
         mutate: vi.fn(),
       });
 
       renderWithSwr(<CompletedVisitsExtension />);
 
-      const criteria = mockUseQueueEntries.mock.calls[0][0];
-      expect(criteria).not.toHaveProperty('isEnded');
-      expect(criteria).toEqual(
-        expect.objectContaining({ status: defaultConfig.concepts.defaultFinishedServiceStatus }),
-      );
+      expect(await screen.findByText('Finished Service')).toBeInTheDocument();
+      expect(screen.getByText('0')).toBeInTheDocument();
     });
   });
 
@@ -229,12 +303,14 @@ describe('service queues metrics cards', () => {
           makeEntry({
             uuid: 'e1',
             patient: mockPatientAlice,
+            status: finishedServiceStatus,
             endedAt: nowIso,
             visit: { startDatetime: thirtyMinutesAgo, stopDatetime: nowIso } as any,
           }),
           makeEntry({
             uuid: 'e2',
             patient: mockPatientBrian,
+            status: finishedServiceStatus,
             endedAt: nowIso,
             visit: { startDatetime: sixtyMinutesAgo, stopDatetime: nowIso } as any,
           }),
@@ -261,11 +337,13 @@ describe('service queues metrics cards', () => {
           makeEntry({
             uuid: 'overdue-closed-today',
             patient: mockPatientAlice,
+            status: finishedServiceStatus,
             visit: { startDatetime: '2020-01-01T00:00:00.000+0000', stopDatetime: nowIso } as any,
           }),
           makeEntry({
             uuid: 'genuinely-today',
             patient: mockPatientBrian,
+            status: finishedServiceStatus,
             visit: { startDatetime: thirtyMinutesAgo, stopDatetime: nowIso } as any,
           }),
         ],

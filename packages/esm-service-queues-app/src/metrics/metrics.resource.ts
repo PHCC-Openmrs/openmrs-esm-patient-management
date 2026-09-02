@@ -7,26 +7,46 @@ import { useQueueEntries } from '../hooks/useQueueEntries';
 import { dedupeQueueEntriesByPatient, isQueueEntryFromToday } from '../service-queues.resource';
 
 /**
- * Count of queue entries currently "In Service" (i.e. today's checked-in patients who are
- * actively being attended to right now) - the same population the "Patients Currently In
- * Queue" table shows when filtered to "In Service", not a separately-tallied /visit count that
- * can drift from what that table displays. An entry whose visit started on a previous day (an
- * overdue visit that's still open and In Service) is excluded here for the same reason the table
- * excludes it - it belongs to "Overdue Visits", not to today's queue activity.
+ * Fetches every status this deployment's workflow can produce (In Service, Finished Service) in
+ * one request - mirroring default-queue-table.component.tsx exactly - then reduces to each
+ * patient's single most current entry today. A patient who finished one visit and started a new
+ * one later the same day would otherwise still be counted under "Finished Service" for their
+ * older, superseded entry: a query scoped to just one status has no way to know a newer entry
+ * with a different status now exists for the same patient. isEnded is intentionally omitted: In
+ * Service entries are naturally still open, Finished Service ones are always already ended, and
+ * any stale/ended intermediate room-step entries that slip in regardless get discarded by the
+ * per-patient "keep only the latest" dedup.
  */
-export function useCheckedInPatients() {
+function useTodaysLatestQueueEntryPerPatient() {
   const { concepts } = useConfig<ConfigObject>();
   const { sessionLocation } = useSession();
 
   const { queueEntries, isLoading, isValidating } = useQueueEntries({
-    status: concepts.defaultTransitionStatus,
-    isEnded: false,
+    status: [concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus],
     location: sessionLocation?.uuid,
   });
 
-  const checkedInPatientsCount = useMemo(
-    () => dedupeQueueEntriesByPatient((queueEntries ?? []).filter(isQueueEntryFromToday)).length,
+  const todaysLatestEntryPerPatient = useMemo(
+    () => dedupeQueueEntriesByPatient((queueEntries ?? []).filter(isQueueEntryFromToday)),
     [queueEntries],
+  );
+
+  return { todaysLatestEntryPerPatient, isLoading, isValidating };
+}
+
+/**
+ * Count of queue entries currently "In Service" (i.e. today's checked-in patients who are
+ * actively being attended to right now) - the same population the "Patients Currently In
+ * Queue" table shows when filtered to "In Service", not a separately-tallied /visit count that
+ * can drift from what that table displays.
+ */
+export function useCheckedInPatients() {
+  const { concepts } = useConfig<ConfigObject>();
+  const { todaysLatestEntryPerPatient, isLoading, isValidating } = useTodaysLatestQueueEntryPerPatient();
+
+  const checkedInPatientsCount = useMemo(
+    () => todaysLatestEntryPerPatient.filter((entry) => entry.status?.uuid === concepts.defaultTransitionStatus).length,
+    [todaysLatestEntryPerPatient, concepts.defaultTransitionStatus],
   );
 
   return {
@@ -38,23 +58,15 @@ export function useCheckedInPatients() {
 
 /**
  * Count (and average duration) of visits whose queue entry moved to "Finished Service" today -
- * mirrors the queue table's own Finished Service view (same "today" definition and per-patient
- * dedup as default-queue-table.component.tsx, so this card's number always matches the table's
- * row count). isEnded is intentionally omitted: the backend only ever assigns this status to
- * entries it has already ended, so isEnded:false would hide every match.
+ * mirrors the queue table's own Finished Service view.
  */
 export function useCompletedVisits() {
   const { concepts } = useConfig<ConfigObject>();
-  const { sessionLocation } = useSession();
-
-  const { queueEntries, isLoading, isValidating } = useQueueEntries({
-    status: concepts.defaultFinishedServiceStatus,
-    location: sessionLocation?.uuid,
-  });
+  const { todaysLatestEntryPerPatient, isLoading, isValidating } = useTodaysLatestQueueEntryPerPatient();
 
   const completedToday = useMemo(
-    () => dedupeQueueEntriesByPatient((queueEntries ?? []).filter(isQueueEntryFromToday)),
-    [queueEntries],
+    () => todaysLatestEntryPerPatient.filter((entry) => entry.status?.uuid === concepts.defaultFinishedServiceStatus),
+    [todaysLatestEntryPerPatient, concepts.defaultFinishedServiceStatus],
   );
 
   const completedVisitsCount = completedToday.length;

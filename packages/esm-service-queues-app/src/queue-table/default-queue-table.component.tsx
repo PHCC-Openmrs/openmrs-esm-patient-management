@@ -44,22 +44,21 @@ function QueueTableSection() {
   // and finished patients in together.
   const effectiveStatusUuid = selectedQueueStatusUuid || concepts.defaultTransitionStatus;
 
-  // "Finished Service" is the one status the backend only ever sets on entries it has already
-  // ended, so requesting isEnded: false there would hide every match - see searchCriteria below.
-  const isFinishedServiceStatusSelected = selectedQueueStatusUuid === concepts.defaultFinishedServiceStatus;
-
   const searchCriteria = useMemo(() => {
-    // The backend auto-ends a queue entry whenever its visit ends, regardless of status, and also
-    // ends an entry once the patient moves on to a later queue/room. Excluding ended entries is
-    // therefore correct for every status except the terminal "Finished Service" one. Every other
-    // status (e.g. "In Service", "Waiting") must still exclude ended entries, or an
-    // already-finished/superseded entry keeps showing as if still active.
+    // Always fetch every status this deployment's workflow can produce (In Service, Finished
+    // Service) in one request, rather than only the currently-selected one. A patient who
+    // finished one visit and started a new one later the same day would otherwise still show
+    // under "Finished Service" - their older, superseded entry - since a query scoped to just
+    // that one status has no way to know a newer entry with a different status now exists for
+    // the same patient. isEnded is intentionally omitted: In Service entries are naturally
+    // still open, Finished Service ones are always already ended, and any stale/ended
+    // intermediate room-step entries that slip in regardless get discarded by the per-patient
+    // "keep only the latest" dedup below.
     return {
       service: selectedServiceUuid,
-      isEnded: isFinishedServiceStatusSelected ? undefined : false,
-      status: effectiveStatusUuid,
+      status: [concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus],
     };
-  }, [selectedServiceUuid, isFinishedServiceStatusSelected, effectiveStatusUuid]);
+  }, [selectedServiceUuid, concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus]);
 
   const { queueEntries, isLoading, error, isValidating } = useQueueEntries(searchCriteria);
 
@@ -94,8 +93,18 @@ function QueueTableSection() {
 
   const filteredQueueEntries = useMemo(() => {
     const searchTermLowercase = searchTerm.toLowerCase();
-    const todaysEntries = queueEntries
-      ?.filter(isQueueEntryFromToday)
+
+    // A patient can legitimately have more than one entry today (e.g. finishing one visit and
+    // starting a new one later) - establish their single most current entry first, across every
+    // fetched status, before applying any other filter. Otherwise a patient's older, superseded
+    // "Finished Service" entry could still pass the status filter below even though they now
+    // have a newer "In Service" entry.
+    const todaysLatestEntryPerPatient = dedupeQueueEntriesByPatient(
+      (queueEntries ?? []).filter(isQueueEntryFromToday),
+    );
+
+    return todaysLatestEntryPerPatient
+      .filter((queueEntry) => queueEntry.status?.uuid === effectiveStatusUuid)
       .filter(
         (queueEntry) => !selectedQueueLocationUuid || queueEntry.visit?.location?.uuid === selectedQueueLocationUuid,
       )
@@ -105,17 +114,22 @@ function QueueTableSection() {
         }
         const patientPrograms = programsByPatientUuid[queueEntry.patient?.uuid] ?? [];
         return patientPrograms.some((enrollment) => enrollment.program?.uuid === selectedProgramUuid);
+      })
+      .filter((queueEntry) => {
+        return columns?.some((column) => {
+          const columnSearchTerm = column.getFilterableValue?.(queueEntry)?.toLocaleLowerCase();
+          return columnSearchTerm?.includes(searchTermLowercase);
+        });
       });
-
-    // A patient can legitimately have more than one entry today (e.g. two separate,
-    // fully-completed visits) - only show their most current one, not every historical entry.
-    return dedupeQueueEntriesByPatient(todaysEntries ?? []).filter((queueEntry) => {
-      return columns?.some((column) => {
-        const columnSearchTerm = column.getFilterableValue?.(queueEntry)?.toLocaleLowerCase();
-        return columnSearchTerm?.includes(searchTermLowercase);
-      });
-    });
-  }, [columns, queueEntries, searchTerm, selectedQueueLocationUuid, selectedProgramUuid, programsByPatientUuid]);
+  }, [
+    columns,
+    queueEntries,
+    searchTerm,
+    effectiveStatusUuid,
+    selectedQueueLocationUuid,
+    selectedProgramUuid,
+    programsByPatientUuid,
+  ]);
 
   if (isLoading) {
     return <DataTableSkeleton role="progressbar" />;

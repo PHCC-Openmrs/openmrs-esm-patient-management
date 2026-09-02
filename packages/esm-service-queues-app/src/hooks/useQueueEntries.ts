@@ -28,6 +28,24 @@ export function useMutateQueueEntries() {
   );
 }
 
+/**
+ * Appends a search criteria value to the query string. Array values (e.g. `status: [a, b]`)
+ * are appended as repeated params (`status=a&status=b`), matching how the servlet's
+ * getParameterMap()/String[] - and this module's QueueEntrySearchCriteriaParser - expect
+ * multi-value params; joining them into one comma-separated value would instead be parsed as
+ * a single, unresolvable concept reference.
+ */
+function appendSearchParam(searchParam: URLSearchParams, key: string, value: unknown) {
+  if (value == null) {
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((v) => appendSearchParam(searchParam, key, v));
+  } else {
+    searchParam.append(key, value.toString());
+  }
+}
+
 export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: string = repString) {
   const searchParam = new URLSearchParams();
   searchParam.append('v', rep);
@@ -35,9 +53,7 @@ export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: 
 
   if (searchCriteria) {
     for (let [key, value] of Object.entries(searchCriteria)) {
-      if (value != null) {
-        searchParam.append(key, value?.toString());
-      }
+      appendSearchParam(searchParam, key, value);
     }
   }
 
@@ -52,9 +68,7 @@ export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: 
 export function useQueueEntriesMetrics(searchCriteria?: QueueEntrySearchCriteria) {
   const searchParam = new URLSearchParams();
   for (let [key, value] of Object.entries(searchCriteria)) {
-    if (value != null) {
-      searchParam.append(key, value?.toString());
-    }
+    appendSearchParam(searchParam, key, value);
   }
   const apiUrl = `${restBaseUrl}/queue-entry-metrics?` + searchParam.toString();
 
