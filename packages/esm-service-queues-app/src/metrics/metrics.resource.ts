@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import useSWR from 'swr';
 import { type ConfigObject } from '../config-schema';
 import { useQueueEntries } from '../hooks/useQueueEntries';
+import { dedupeQueueEntriesByPatient, isQueueEntryFromToday } from '../service-queues.resource';
 
 /**
  * Count of queue entries currently "In Service" (i.e. today's checked-in patients who are
@@ -36,9 +37,10 @@ export function useCheckedInPatients() {
 
 /**
  * Count (and average duration) of visits whose queue entry moved to "Finished Service" today -
- * mirrors the queue table's own Finished Service view. isEnded is intentionally omitted: the
- * backend only ever assigns this status to entries it has already ended, so isEnded:false would
- * hide every match (see default-queue-table.component.tsx for the same reasoning).
+ * mirrors the queue table's own Finished Service view (same "today" definition and per-patient
+ * dedup as default-queue-table.component.tsx, so this card's number always matches the table's
+ * row count). isEnded is intentionally omitted: the backend only ever assigns this status to
+ * entries it has already ended, so isEnded:false would hide every match.
  */
 export function useCompletedVisits() {
   const { concepts } = useConfig<ConfigObject>();
@@ -50,7 +52,7 @@ export function useCompletedVisits() {
   });
 
   const completedToday = useMemo(
-    () => (queueEntries ?? []).filter((entry) => entry.endedAt && dayjs(entry.endedAt).isSame(dayjs(), 'day')),
+    () => dedupeQueueEntriesByPatient((queueEntries ?? []).filter(isQueueEntryFromToday)),
     [queueEntries],
   );
 

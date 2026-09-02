@@ -104,11 +104,61 @@ describe('service queues metrics cards', () => {
   });
 
   describe('CompletedVisitsExtension', () => {
-    it('only counts entries that ended today', async () => {
+    it('only counts entries whose visit started today', async () => {
+      const today = new Date().toISOString();
       mockUseQueueEntries.mockReturnValue({
         queueEntries: [
-          makeEntry({ uuid: 'today', endedAt: new Date().toISOString() }),
-          makeEntry({ uuid: 'yesterday', endedAt: '2020-01-01T00:00:00.000+0000' }),
+          makeEntry({ uuid: 'today', patient: mockPatientAlice, visit: { startDatetime: today } as any }),
+          makeEntry({
+            uuid: 'yesterday',
+            patient: mockPatientBrian,
+            visit: { startDatetime: '2020-01-01T00:00:00.000+0000' } as any,
+          }),
+        ],
+        isLoading: false,
+        isValidating: false,
+        error: undefined,
+        totalCount: 2,
+        mutate: vi.fn(),
+      });
+
+      renderWithSwr(<CompletedVisitsExtension />);
+
+      expect(await screen.findByText('Finished Service')).toBeInTheDocument();
+      expect(screen.getByText('1')).toBeInTheDocument();
+    });
+
+    it('excludes an overdue visit even after it is finally closed today', async () => {
+      // The visit started days ago (tracked separately by the "Overdue Visits" widget) -
+      // closing it today must not resurrect it as one of today's completions.
+      mockUseQueueEntries.mockReturnValue({
+        queueEntries: [
+          makeEntry({
+            uuid: 'overdue-closed-today',
+            startedAt: '2020-01-01T00:00:00.000+0000',
+            endedAt: new Date().toISOString(),
+            visit: { startDatetime: '2020-01-01T00:00:00.000+0000', stopDatetime: new Date().toISOString() } as any,
+          }),
+        ],
+        isLoading: false,
+        isValidating: false,
+        error: undefined,
+        totalCount: 1,
+        mutate: vi.fn(),
+      });
+
+      renderWithSwr(<CompletedVisitsExtension />);
+
+      expect(await screen.findByText('Finished Service')).toBeInTheDocument();
+      expect(screen.getByText('0')).toBeInTheDocument();
+    });
+
+    it('counts a patient with two completed visits today as one completion', async () => {
+      const today = new Date().toISOString();
+      mockUseQueueEntries.mockReturnValue({
+        queueEntries: [
+          makeEntry({ uuid: 'visit-1', patient: mockPatientAlice, visit: { startDatetime: today } as any }),
+          makeEntry({ uuid: 'visit-2', patient: mockPatientAlice, visit: { startDatetime: today } as any }),
         ],
         isLoading: false,
         isValidating: false,
@@ -144,19 +194,24 @@ describe('service queues metrics cards', () => {
   });
 
   describe('AverageVisitDurationExtension', () => {
-    it('averages visit duration (stopDatetime - startDatetime) across entries finished today', async () => {
-      const today = new Date().toISOString();
+    it('averages visit duration (stopDatetime - startDatetime) across distinct patients finished today', async () => {
+      const now = new Date();
+      const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
+      const sixtyMinutesAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+      const nowIso = now.toISOString();
       mockUseQueueEntries.mockReturnValue({
         queueEntries: [
           makeEntry({
             uuid: 'e1',
-            endedAt: today,
-            visit: { startDatetime: '2026-09-01T07:00:00.000+0000', stopDatetime: '2026-09-01T07:30:00.000+0000' } as any,
+            patient: mockPatientAlice,
+            endedAt: nowIso,
+            visit: { startDatetime: thirtyMinutesAgo, stopDatetime: nowIso } as any,
           }),
           makeEntry({
             uuid: 'e2',
-            endedAt: today,
-            visit: { startDatetime: '2026-09-01T08:00:00.000+0000', stopDatetime: '2026-09-01T09:00:00.000+0000' } as any,
+            patient: mockPatientBrian,
+            endedAt: nowIso,
+            visit: { startDatetime: sixtyMinutesAgo, stopDatetime: nowIso } as any,
           }),
         ],
         isLoading: false,
@@ -170,6 +225,36 @@ describe('service queues metrics cards', () => {
 
       // (30 + 60) / 2 = 45 minutes
       expect(await screen.findByText('45')).toBeInTheDocument();
+    });
+
+    it('excludes an overdue visit closed today from the average, guarding against a multi-day duration skewing it', async () => {
+      const now = new Date();
+      const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
+      const nowIso = now.toISOString();
+      mockUseQueueEntries.mockReturnValue({
+        queueEntries: [
+          makeEntry({
+            uuid: 'overdue-closed-today',
+            patient: mockPatientAlice,
+            visit: { startDatetime: '2020-01-01T00:00:00.000+0000', stopDatetime: nowIso } as any,
+          }),
+          makeEntry({
+            uuid: 'genuinely-today',
+            patient: mockPatientBrian,
+            visit: { startDatetime: thirtyMinutesAgo, stopDatetime: nowIso } as any,
+          }),
+        ],
+        isLoading: false,
+        isValidating: false,
+        error: undefined,
+        totalCount: 2,
+        mutate: vi.fn(),
+      });
+
+      renderWithSwr(<AverageVisitDurationExtension />);
+
+      // Only the genuinely-today 30-minute visit should count - not the multi-year overdue one.
+      expect(await screen.findByText('30')).toBeInTheDocument();
     });
 
     it('shows a placeholder instead of a misleading average when there are no completions today', async () => {

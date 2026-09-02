@@ -5,6 +5,7 @@ import {
   mockLocationSurgery,
   mockLocationTriage,
   mockQueueEntries,
+  mockQueueEntryAlice,
   mockQueueRooms,
   mockServices,
   mockSession,
@@ -122,7 +123,11 @@ describe('DefaultQueueTable', () => {
       isLoading: false,
       error: null,
     });
-    const todaysQueueEntries = mockQueueEntries.map((entry) => ({ ...entry, startedAt: new Date().toISOString() }));
+    const todaysQueueEntries = mockQueueEntries.map((entry) => ({
+      ...entry,
+      startedAt: new Date().toISOString(),
+      visit: entry.visit ? { ...entry.visit, startDatetime: new Date().toISOString() } : entry.visit,
+    }));
     mockUseQueueEntries.mockReturnValue({
       queueEntries: todaysQueueEntries,
       error: undefined,
@@ -151,6 +156,99 @@ describe('DefaultQueueTable', () => {
         }),
       ).toBeInTheDocument();
     });
+  });
+
+  it('excludes an overdue visit even after it is finally closed today', async () => {
+    // The visit itself started days ago (and would show in the separate "Overdue Visits"
+    // widget) - closing it today must not resurrect it here, regardless of its startedAt/endedAt.
+    const overdueVisitClosedToday = {
+      ...mockQueueEntryAlice,
+      startedAt: '2020-01-01T00:00:00.000+0000',
+      endedAt: new Date().toISOString(),
+      visit: {
+        ...mockQueueEntryAlice.visit,
+        startDatetime: '2020-01-01T00:00:00.000+0000',
+        stopDatetime: new Date().toISOString(),
+      },
+    };
+    mockUseQueueEntries.mockReturnValue({
+      queueEntries: [overdueVisitClosedToday],
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: vi.fn(),
+      totalCount: 1,
+    });
+
+    rendeDefaultQueueTable();
+
+    await screen.findByRole('table');
+
+    expect(screen.getByText(/no patients to display/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Alice Johnson/i })).not.toBeInTheDocument();
+  });
+
+  it('excludes an overdue visit moved to a new room today, since the visit itself is still from a previous day', async () => {
+    const movedOverdueVisit = {
+      ...mockQueueEntryAlice,
+      startedAt: new Date().toISOString(),
+      endedAt: null,
+      visit: {
+        ...mockQueueEntryAlice.visit,
+        startDatetime: '2020-01-01T00:00:00.000+0000',
+        stopDatetime: null,
+      },
+    };
+    mockUseQueueEntries.mockReturnValue({
+      queueEntries: [movedOverdueVisit],
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: vi.fn(),
+      totalCount: 1,
+    });
+
+    rendeDefaultQueueTable();
+
+    await screen.findByRole('table');
+
+    expect(screen.getByText(/no patients to display/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Alice Johnson/i })).not.toBeInTheDocument();
+  });
+
+  it('shows only the most recent entry when a patient has more than one entry today', async () => {
+    const now = new Date();
+    const anHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+    const nowIso = now.toISOString();
+
+    const earlierVisitToday = {
+      ...mockQueueEntryAlice,
+      uuid: 'alice-earlier-visit',
+      startedAt: anHourAgo,
+      endedAt: anHourAgo,
+      visit: { ...mockQueueEntryAlice.visit, startDatetime: anHourAgo, stopDatetime: anHourAgo },
+    };
+    const laterVisitToday = {
+      ...mockQueueEntryAlice,
+      uuid: 'alice-later-visit',
+      startedAt: nowIso,
+      endedAt: null,
+      visit: { ...mockQueueEntryAlice.visit, startDatetime: nowIso, stopDatetime: null },
+    };
+    mockUseQueueEntries.mockReturnValue({
+      queueEntries: [earlierVisitToday, laterVisitToday],
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: vi.fn(),
+      totalCount: 2,
+    });
+
+    rendeDefaultQueueTable();
+
+    await screen.findByRole('table');
+
+    expect(screen.getAllByRole('link', { name: /Alice Johnson/i })).toHaveLength(1);
   });
 });
 

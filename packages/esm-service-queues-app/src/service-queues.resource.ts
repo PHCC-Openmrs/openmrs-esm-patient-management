@@ -15,6 +15,47 @@ import { type Concept, type Identifer, type Queue, type QueueEntry } from './typ
 
 dayjs.extend(isToday);
 
+/**
+ * Whether a queue entry belongs to "today's" queue activity. Keyed off the visit's own
+ * startDatetime (set once, at visit creation) rather than the entry's startedAt or endedAt,
+ * both of which are rewritten by every room move / by closing the visit - a visit opened
+ * yesterday and moved to a new room today would still show a startedAt of today, and closing
+ * an overdue visit today sets endedAt to today, so either of those would incorrectly let an
+ * overdue (prior-day) visit back into "today's" queue table/metrics. visit.startDatetime never
+ * changes, so it's the one field that correctly and permanently marks a visit as overdue or not
+ * for its whole lifecycle - matching how "Overdue Visits" itself defines overdue.
+ */
+export function isQueueEntryFromToday(queueEntry: QueueEntry): boolean {
+  return dayjs(queueEntry.visit?.startDatetime ?? queueEntry.startedAt).isToday();
+}
+
+/**
+ * Collapses a list of queue entries to at most one per patient, keeping the most recently
+ * started entry. A patient can legitimately have more than one queue entry today (e.g. two
+ * separate, fully-completed visits), but the queue table and its metrics should only ever
+ * show/count the current, most relevant one rather than surfacing every historical entry.
+ * Entries without a patient uuid are never merged with anything else.
+ */
+export function dedupeQueueEntriesByPatient(entries: Array<QueueEntry>): Array<QueueEntry> {
+  const latestByPatient = new Map<string, QueueEntry>();
+  const withoutPatient: Array<QueueEntry> = [];
+
+  for (const entry of entries) {
+    const patientUuid = entry.patient?.uuid;
+    if (!patientUuid) {
+      withoutPatient.push(entry);
+      continue;
+    }
+
+    const current = latestByPatient.get(patientUuid);
+    if (!current || dayjs(entry.startedAt).isAfter(dayjs(current.startedAt))) {
+      latestByPatient.set(patientUuid, entry);
+    }
+  }
+
+  return [...latestByPatient.values(), ...withoutPatient];
+}
+
 export interface VisitQueueEntry {
   queueEntry: QueueEntry;
   uuid: string;

@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DataTableSkeleton, Dropdown, Layer, TableToolbarSearch } from '@carbon/react';
 import { useTranslation } from 'react-i18next';
-import dayjs from 'dayjs';
 import { isDesktop, showSnackbar, useConfig, useLayoutType } from '@openmrs/esm-framework';
 import { type ConfigObject } from '../config-schema';
+import { dedupeQueueEntriesByPatient, isQueueEntryFromToday } from '../service-queues.resource';
 import { updateSelectedQueueStatus, useServiceQueuesStore } from '../store/store';
 import { useColumns } from './cells/columns.resource';
 import { useQueueEntries } from '../hooks/useQueueEntries';
@@ -95,12 +95,8 @@ function QueueTableSection() {
 
   const filteredQueueEntries = useMemo(() => {
     const searchTermLowercase = searchTerm.toLowerCase();
-    return queueEntries
-      ?.filter(
-        (queueEntry) =>
-          dayjs(queueEntry.startedAt).isSame(dayjs(), 'day') ||
-          (queueEntry.endedAt && dayjs(queueEntry.endedAt).isSame(dayjs(), 'day')),
-      )
+    const todaysEntries = queueEntries
+      ?.filter(isQueueEntryFromToday)
       .filter(
         (queueEntry) => !selectedQueueLocationUuid || queueEntry.visit?.location?.uuid === selectedQueueLocationUuid,
       )
@@ -110,13 +106,16 @@ function QueueTableSection() {
         }
         const patientPrograms = programsByPatientUuid[queueEntry.patient?.uuid] ?? [];
         return patientPrograms.some((enrollment) => enrollment.program?.uuid === selectedProgramUuid);
-      })
-      .filter((queueEntry) => {
-        return columns?.some((column) => {
-          const columnSearchTerm = column.getFilterableValue?.(queueEntry)?.toLocaleLowerCase();
-          return columnSearchTerm?.includes(searchTermLowercase);
-        });
       });
+
+    // A patient can legitimately have more than one entry today (e.g. two separate,
+    // fully-completed visits) - only show their most current one, not every historical entry.
+    return dedupeQueueEntriesByPatient(todaysEntries ?? []).filter((queueEntry) => {
+      return columns?.some((column) => {
+        const columnSearchTerm = column.getFilterableValue?.(queueEntry)?.toLocaleLowerCase();
+        return columnSearchTerm?.includes(searchTermLowercase);
+      });
+    });
   }, [columns, queueEntries, searchTerm, selectedQueueLocationUuid, selectedProgramUuid, programsByPatientUuid]);
 
   if (isLoading) {
