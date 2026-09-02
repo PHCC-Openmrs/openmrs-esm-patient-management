@@ -10,7 +10,9 @@ import { dedupeQueueEntriesByPatient, isQueueEntryFromToday } from '../service-q
  * Count of queue entries currently "In Service" (i.e. today's checked-in patients who are
  * actively being attended to right now) - the same population the "Patients Currently In
  * Queue" table shows when filtered to "In Service", not a separately-tallied /visit count that
- * can drift from what that table displays.
+ * can drift from what that table displays. An entry whose visit started on a previous day (an
+ * overdue visit that's still open and In Service) is excluded here for the same reason the table
+ * excludes it - it belongs to "Overdue Visits", not to today's queue activity.
  */
 export function useCheckedInPatients() {
   const { concepts } = useConfig<ConfigObject>();
@@ -22,9 +24,8 @@ export function useCheckedInPatients() {
     location: sessionLocation?.uuid,
   });
 
-  // Dedupe by patient in case a patient somehow ends up with more than one open entry.
   const checkedInPatientsCount = useMemo(
-    () => new Set((queueEntries ?? []).map((entry) => entry.patient?.uuid).filter(Boolean)).size,
+    () => dedupeQueueEntriesByPatient((queueEntries ?? []).filter(isQueueEntryFromToday)).length,
     [queueEntries],
   );
 

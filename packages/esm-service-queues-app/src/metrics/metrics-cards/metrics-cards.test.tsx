@@ -31,7 +31,7 @@ function makeEntry(overrides: Partial<QueueEntry>): QueueEntry {
     priorityComment: null,
     providerWaitingFor: null,
     queue: null,
-    startedAt: '2026-09-01T07:00:00.000+0000',
+    startedAt: new Date().toISOString(),
     status: mockStatusInService,
     visit: null,
     sortWeight: 0,
@@ -79,6 +79,31 @@ describe('service queues metrics cards', () => {
       renderWithSwr(<CheckedInPatientsExtension />);
 
       expect(await screen.findByText('1')).toBeInTheDocument();
+    });
+
+    it('excludes an overdue visit that is still open and In Service, since it belongs to "Overdue Visits" instead', async () => {
+      // A visit that started days ago and was never moved/closed - still shows as "In Service"
+      // in the DB, but must not count as one of today's checked-in patients.
+      mockUseQueueEntries.mockReturnValue({
+        queueEntries: [
+          makeEntry({
+            uuid: 'overdue-still-in-service',
+            patient: mockPatientAlice,
+            visit: { startDatetime: '2020-01-01T00:00:00.000+0000' } as any,
+          }),
+          makeEntry({ uuid: 'genuinely-today', patient: mockPatientBrian }),
+        ],
+        isLoading: false,
+        isValidating: false,
+        error: undefined,
+        totalCount: 2,
+        mutate: vi.fn(),
+      });
+
+      renderWithSwr(<CheckedInPatientsExtension />);
+
+      expect(await screen.findByText('In Service')).toBeInTheDocument();
+      expect(screen.getByText('1')).toBeInTheDocument();
     });
 
     it('queries with isEnded: false and the session location, scoped to the "In Service" status', () => {
