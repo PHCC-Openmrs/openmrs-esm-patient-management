@@ -9,11 +9,26 @@ import { completePharmacyQueueEntryForPatient } from './pharmacy-completion';
 export const importTranslation = require.context('../translations', false, /.json$/, 'lazy');
 
 const moduleName = '@openmrs/esm-service-queues-app';
-const swrRefreshIntervalInMs = 60000;
+// Queue state changes on other terminals (a different clerk ending/starting a visit) don't
+// invalidate this browser's cache on their own - only an explicit mutate() call from the action
+// that made the change does, and that only covers this same browser tab. A short poll interval
+// is what actually keeps a second tab/terminal's view converging with reality on its own, without
+// requiring a manual refresh. Was 60s; queue state is time-sensitive enough that a full minute of
+// staleness reads as broken, not just delayed.
+const swrRefreshIntervalInMs = 5000;
 
 const options = {
   featureName: 'serviceQueues',
   moduleName,
+};
+
+// Only for the live queue/metrics views - other extensions sharing `options` (side nav, forms,
+// etc.) have no reason to poll on a timer.
+const liveQueueDataOptions = {
+  ...options,
+  swrConfig: {
+    refreshInterval: swrRefreshIntervalInMs,
+  },
 };
 
 export const root = getAsyncLifecycle(() => import('./root.component'), {
@@ -53,17 +68,17 @@ export const pastVisitSummary = getAsyncLifecycle(() => import('./past-visit/pas
 
 export const metricsCardCheckedInPatients = getAsyncLifecycle(
   () => import('./metrics/metrics-cards/checked-in-patients.extension'),
-  options,
+  liveQueueDataOptions,
 );
 
 export const metricsCardCompletedVisits = getAsyncLifecycle(
   () => import('./metrics/metrics-cards/completed-visits.extension'),
-  options,
+  liveQueueDataOptions,
 );
 
 export const metricsCardAverageVisitDuration = getAsyncLifecycle(
   () => import('./metrics/metrics-cards/average-visit-duration.extension'),
-  options,
+  liveQueueDataOptions,
 );
 
 export const callQueueEntryModal = getAsyncLifecycle(() => import('./modals/call-modal/call-queue-entry.modal'), {

@@ -29,7 +29,13 @@ export async function autoEnqueuePatientForVisit(patientUuid: string, visitUuid:
       `${restBaseUrl}/queue-entry?patient=${patientUuid}&v=custom:(uuid)&isEnded=false`,
     );
     if (existingEntries?.results?.length > 0) {
-      // Already queued, e.g. by the visible "add to queue" fields on the start-visit form.
+      // Already queued, e.g. by the visible "add to queue" fields on the start-visit form. That
+      // form's own submission already mutates the queue-entry cache on success, but this event
+      // listener can run before or after that submission settles, so mutate defensively here too
+      // rather than relying on ordering between two independent code paths.
+      await mutate(
+        (key) => typeof key === 'string' && (key.includes('/queue-entry') || key.includes('/visit-queue-entry')),
+      );
       return;
     }
 

@@ -41,14 +41,15 @@ export async function completeActiveQueueEntryForPatient(visitUuid: string): Pro
 
     const { concepts } = await getConfig<ConfigObject>(moduleName);
 
-    if (lastQueueEntry.status?.uuid !== concepts.defaultTransitionStatus) {
-      return;
+    if (lastQueueEntry.status?.uuid === concepts.defaultTransitionStatus) {
+      await updateQueueEntry(lastQueueEntry.uuid, {
+        status: { uuid: concepts.defaultFinishedServiceStatus },
+      });
     }
 
-    await updateQueueEntry(lastQueueEntry.uuid, {
-      status: { uuid: concepts.defaultFinishedServiceStatus },
-    });
-
+    // Stopping the visit always closes its queue entries server-side (VisitWithQueueEntriesSaveHandler
+    // sets endedAt), even on the branch above where this handler itself has nothing further to update -
+    // so the queue-entry cache is stale regardless of which branch ran, not just when we changed status.
     await mutate(
       (key) => typeof key === 'string' && (key.includes('/queue-entry') || key.includes('/visit-queue-entry')),
     );
