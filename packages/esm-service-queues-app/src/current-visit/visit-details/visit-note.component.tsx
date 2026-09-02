@@ -17,10 +17,7 @@ const VisitNote: React.FC<VisitNoteProps> = ({ notes, patientUuid, diagnoses }) 
   const { t } = useTranslation();
   const { patient } = usePatient(patientUuid);
   const session = useSession();
-  // Saving a visit note creates an Encounter, so this must match the gate used
-  // by the patient chart's own Visit note action button.
-  const canRecordVisitNote =
-    userHasAccess('Add Encounters', session?.user) || userHasAccess('Edit Encounters', session?.user);
+  const canRecordVisitNote = userHasAccess('Task: patientChart.recordVisitNote', session?.user);
 
   return (
     <div>
