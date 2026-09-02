@@ -9,7 +9,6 @@ import { useColumns } from './cells/columns.resource';
 import { useQueueEntries } from '../hooks/useQueueEntries';
 import { useActiveProgramsForPatients } from '../hooks/usePatientPrograms';
 import useQueueStatuses from '../hooks/useQueueStatuses';
-import ClearQueueEntries from '../modals/clear-queue-entries-modal/clear-queue-entries.component';
 import QueueTable from './queue-table.component';
 import QueueTableExpandedRow from './queue-table-expanded-row.component';
 import styles from './queue-table.scss';
@@ -131,7 +130,6 @@ function QueueTableSection() {
       statusUuid={null}
       tableFilters={
         <>
-          {filteredQueueEntries?.length > 0 && <ClearQueueEntries queueEntries={filteredQueueEntries} />}
           <StatusDropdownFilter />
           <TableToolbarSearch
             className={styles.search}
