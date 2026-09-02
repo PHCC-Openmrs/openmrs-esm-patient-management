@@ -16,6 +16,13 @@ const moduleName = '@openmrs/esm-service-queues-app';
 // requiring a manual refresh. Was 60s; queue state is time-sensitive enough that a full minute of
 // staleness reads as broken, not just delayed.
 const swrRefreshIntervalInMs = 5000;
+// dedupingInterval is what would otherwise let a request reuse a just-fetched response instead of
+// hitting the server again - queue state must always be read fresh, so it's disabled outright
+// rather than merely shortened.
+const liveQueueDataSwrConfig = {
+  refreshInterval: swrRefreshIntervalInMs,
+  dedupingInterval: 0,
+};
 
 const options = {
   featureName: 'serviceQueues',
@@ -23,20 +30,16 @@ const options = {
 };
 
 // Only for the live queue/metrics views - other extensions sharing `options` (side nav, forms,
-// etc.) have no reason to poll on a timer.
+// etc.) have no reason to poll on a timer or to always bypass request deduping.
 const liveQueueDataOptions = {
   ...options,
-  swrConfig: {
-    refreshInterval: swrRefreshIntervalInMs,
-  },
+  swrConfig: liveQueueDataSwrConfig,
 };
 
 export const root = getAsyncLifecycle(() => import('./root.component'), {
   featureName: 'service-queues-app-root',
   moduleName,
-  swrConfig: {
-    refreshInterval: swrRefreshIntervalInMs,
-  },
+  swrConfig: liveQueueDataSwrConfig,
 });
 
 export const queueTableByStatusMenu = getAsyncLifecycle(
@@ -46,9 +49,7 @@ export const queueTableByStatusMenu = getAsyncLifecycle(
 export const queueTableByStatusView = getAsyncLifecycle(() => import('./views/queue-table-by-status-view.component'), {
   featureName: 'queue-table-by-status-view',
   moduleName,
-  swrConfig: {
-    refreshInterval: swrRefreshIntervalInMs,
-  },
+  swrConfig: liveQueueDataSwrConfig,
 });
 
 export const outpatientSideNav = getAsyncLifecycle(() => import('./side-menu/side-menu.component'), options);
