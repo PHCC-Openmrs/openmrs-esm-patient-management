@@ -57,7 +57,17 @@ export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: 
     }
   }
 
-  const { data, ...rest } = useOpenmrsFetchAll<QueueEntry>(`${queueEntryBaseUrl}?${searchParam.toString()}`);
+  const { data, ...rest } = useOpenmrsFetchAll<QueueEntry>(`${queueEntryBaseUrl}?${searchParam.toString()}`, {
+    // This reads through useSWRInfinite, which by default only refetches the *first* page when
+    // it revalidates (`revalidateFirstPage`); every later page keeps being served from cache
+    // unless the whole hook is remounted. That default silently breaks this query: it sends no
+    // `limit`, so it pages at the server's `webservices.rest.maxResultsDefault` (50) and gets
+    // entries back oldest-first - which puts every entry from today, the only ones the queue
+    // views actually display, on the *last* page as soon as a site has more than one page of
+    // history. Moving a patient would refresh a page of untouched historical entries and go on
+    // rendering the moved patient's old row until the browser was reloaded.
+    swrInfiniteConfig: { revalidateAll: true },
+  });
 
   return {
     queueEntries: data ?? [],
