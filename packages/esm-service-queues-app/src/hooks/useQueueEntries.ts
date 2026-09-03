@@ -57,16 +57,7 @@ export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: 
     }
   }
 
-  const { data, ...rest } = useOpenmrsFetchAll<QueueEntry>(`${queueEntryBaseUrl}?${searchParam.toString()}`, {
-    // Explicit rather than relying on the ambient <SWRConfig> this hook happens to render under -
-    // queue state is read from several different mount points (the table, each metric card), and
-    // this guarantees every one of them polls and never serves a deduped/stale response,
-    // regardless of what config it would otherwise inherit from its particular extension slot.
-    swrInfiniteConfig: {
-      refreshInterval: 5000,
-      dedupingInterval: 0,
-    },
-  });
+  const { data, ...rest } = useOpenmrsFetchAll<QueueEntry>(`${queueEntryBaseUrl}?${searchParam.toString()}`);
 
   return {
     queueEntries: data ?? [],
