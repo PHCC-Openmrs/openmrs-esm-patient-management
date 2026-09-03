@@ -60,17 +60,12 @@ export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: 
   const { data, ...rest } = useOpenmrsFetchAll<QueueEntry>(`${queueEntryBaseUrl}?${searchParam.toString()}`, {
     // Explicit rather than relying on the ambient <SWRConfig> this hook happens to render under -
     // queue state is read from several different mount points (the table, each metric card), and
-    // this guarantees none of them ever serves a deduped/stale response, regardless of what
-    // config it would otherwise inherit from its particular extension slot.
+    // this guarantees every one of them polls and never serves a deduped/stale response,
+    // regardless of what config it would otherwise inherit from its particular extension slot.
     swrInfiniteConfig: {
-      refreshInterval: 0,
+      refreshInterval: 5000,
       dedupingInterval: 0,
     },
-    // The default fetcher doesn't forward custom headers, so the service worker's default
-    // caching strategy applies and can serve a cached response instead of a fresh poll - the
-    // header below forces each poll to hit the network.
-    fetcher: (key) =>
-      openmrsFetch(key, { headers: { 'x-omrs-offline-caching-strategy': 'network-first' } }),
   });
 
   return {
