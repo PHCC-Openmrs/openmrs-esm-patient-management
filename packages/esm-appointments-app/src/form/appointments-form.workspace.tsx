@@ -826,6 +826,7 @@ const AppointmentsForm: React.FC<Workspace2DefinitionProps<AppointmentsFormProps
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Select
                     id="provider"
+                    disabled
                     invalidText="Required"
                     labelText={t('selectProvider', 'Select a provider')}
                     onChange={onChange}
