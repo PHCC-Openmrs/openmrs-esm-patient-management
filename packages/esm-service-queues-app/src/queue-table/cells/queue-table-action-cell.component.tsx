@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Button, OverflowMenu, OverflowMenuItem } from '@carbon/react';
+import { Button } from '@carbon/react';
 import { useTranslation } from 'react-i18next';
 import { isDesktop, showModal, useConfig, useLayoutType, useSession, userHasAccess } from '@openmrs/esm-framework';
 import { type QueueTableColumnFunction, type QueueTableCellComponentProps, type QueueEntry } from '../../types';
@@ -197,36 +197,8 @@ function ActionButton({ actionKey, queueEntry }: { actionKey: QueueEntryAction; 
   );
 }
 
-function ActionOverflowMenuItem({ actionKey, queueEntry }: { actionKey: QueueEntryAction; queueEntry: QueueEntry }) {
-  const { t } = useTranslation();
-  const actionPropsByKey = useActionPropsByKey();
-
-  const actionProps = actionPropsByKey[actionKey];
-  if (!actionProps) {
-    console.error(`Service queue table configuration uses unknown action in 'action.overflowMenu': ${actionKey}`);
-    return null;
-  }
-
-  if (actionProps.showIf && !actionProps.showIf(queueEntry)) {
-    return null;
-  }
-
-  return (
-    <OverflowMenuItem
-      key={actionKey}
-      className={styles.menuItem}
-      aria-label={t(actionProps.label, actionProps.text)}
-      hasDivider
-      isDelete={actionProps.isDelete}
-      onClick={() => actionProps.onClick(queueEntry)}
-      itemText={t(actionProps.label, actionProps.text)}
-    />
-  );
-}
-
 export const queueTableActionColumn: QueueTableColumnFunction = (key, header, config: ActionsColumnConfig) => {
   const QueueTableActionCell = ({ queueEntry }: QueueTableCellComponentProps) => {
-    const layout = useLayoutType();
     const actionPropsByKey = useActionPropsByKey();
     const { buttons, overflowMenu } = config.actions;
     const session = useSession();
@@ -240,7 +212,7 @@ export const queueTableActionColumn: QueueTableColumnFunction = (key, header, co
     // transitioning, or editing a patient who has already been seen.
     const isFinishedService = queueEntry.status?.uuid === defaultFinishedServiceStatus;
 
-    const [buttonComponents, overflowMenuComponents] = useMemo(() => {
+    const buttonComponents = useMemo(() => {
       const declaredButtonComponents = buttons
         .map((actionKey) => {
           const actionProps = actionPropsByKey[actionKey];
@@ -257,8 +229,8 @@ export const queueTableActionColumn: QueueTableColumnFunction = (key, header, co
           return <ActionButton key={actionKey} actionKey={actionKey} queueEntry={queueEntry} />;
         })
         .filter(Boolean);
+
       let fallbackActionComponent: React.ReactNode | null = null;
-      let overflowMenuKeys: QueueEntryAction[] = [];
       if (declaredButtonComponents.length === 0) {
         const defaultAction = overflowMenu.find((actionKey) => {
           const showIf = actionPropsByKey[actionKey].showIf;
@@ -271,34 +243,17 @@ export const queueTableActionColumn: QueueTableColumnFunction = (key, header, co
           fallbackActionComponent = (
             <ActionButton key={defaultAction} actionKey={defaultAction} queueEntry={queueEntry} />
           );
-          overflowMenuKeys = overflowMenu.filter((actionKey) => actionKey !== defaultAction);
-        } else {
-          overflowMenuKeys = overflowMenu;
         }
-      } else {
-        overflowMenuKeys = overflowMenu;
       }
 
-      const overflowMenuComponents = overflowMenuKeys.map((actionKey) => (
-        <ActionOverflowMenuItem key={actionKey} actionKey={actionKey} queueEntry={queueEntry} />
-      ));
-
-      return [[...declaredButtonComponents, fallbackActionComponent], overflowMenuComponents];
+      return [...declaredButtonComponents, fallbackActionComponent];
     }, [buttons, overflowMenu, queueEntry, actionPropsByKey]);
 
     if (!canManageQueueEntries || isFinishedService) {
       return null;
     }
 
-    return (
-      <div className={styles.actionsCell}>
-        {buttonComponents}
-
-        <OverflowMenu aria-label="Actions menu" size={isDesktop(layout) ? 'sm' : 'lg'} align="left" flipped>
-          {overflowMenuComponents}
-        </OverflowMenu>
-      </div>
-    );
+    return <div className={styles.actionsCell}>{buttonComponents}</div>;
   };
 
   return {
