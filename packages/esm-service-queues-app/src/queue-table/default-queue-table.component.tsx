@@ -4,9 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { isDesktop, showSnackbar, useConfig, useLayoutType } from '@openmrs/esm-framework';
 import { type ConfigObject } from '../config-schema';
 import { dedupeQueueEntriesByPatient, isQueueEntryFromToday } from '../service-queues.resource';
-import { updateSelectedQueueStatus, useServiceQueuesStore } from '../store/store';
+import { updateSelectedQueue, updateSelectedQueueStatus, useServiceQueuesStore } from '../store/store';
 import { useColumns } from './cells/columns.resource';
 import { useQueueEntries } from '../hooks/useQueueEntries';
+import { useQueues } from '../hooks/useQueues';
 import { useActiveProgramsForPatients } from '../hooks/usePatientPrograms';
 import useQueueStatuses from '../hooks/useQueueStatuses';
 import QueueTable from './queue-table.component';
@@ -35,8 +36,13 @@ function QueueTableSection() {
   const { t } = useTranslation();
   const layout = useLayoutType();
   const { concepts } = useConfig<ConfigObject>();
-  const { selectedServiceUuid, selectedQueueLocationUuid, selectedQueueStatusUuid, selectedProgramUuid } =
-    useServiceQueuesStore();
+  const {
+    selectedServiceUuid,
+    selectedQueueLocationUuid,
+    selectedQueueStatusUuid,
+    selectedProgramUuid,
+    selectedQueueUuid,
+  } = useServiceQueuesStore();
   const [searchTerm, setSearchTerm] = useState('');
 
   // Before any explicit choice is made, default to "In Service" rather than every status - a
@@ -56,9 +62,15 @@ function QueueTableSection() {
     // "keep only the latest" dedup below.
     return {
       service: selectedServiceUuid,
+      queue: selectedQueueUuid,
       status: [concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus],
     };
-  }, [selectedServiceUuid, concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus]);
+  }, [
+    selectedServiceUuid,
+    selectedQueueUuid,
+    concepts.defaultTransitionStatus,
+    concepts.defaultFinishedServiceStatus,
+  ]);
 
   const { queueEntries, isLoading, error, isValidating } = useQueueEntries(searchCriteria);
 
@@ -144,6 +156,7 @@ function QueueTableSection() {
       statusUuid={null}
       tableFilters={
         <>
+          <QueueDropdownFilter />
           <StatusDropdownFilter />
           <TableToolbarSearch
             className={styles.search}
@@ -162,6 +175,38 @@ function QueueTableSection() {
         </>
       }
     />
+  );
+}
+
+function QueueDropdownFilter() {
+  const { t } = useTranslation();
+  const layout = useLayoutType();
+  const { queues } = useQueues();
+  const { selectedQueueDisplay } = useServiceQueuesStore();
+
+  const queueItems = useMemo(() => [{ uuid: 'all', display: t('all', 'All') }, ...(queues ?? [])], [queues, t]);
+
+  const handleQueueChange = ({ selectedItem }) => {
+    if (selectedItem.uuid === 'all') {
+      updateSelectedQueue(null, null);
+    } else {
+      updateSelectedQueue(selectedItem.uuid, selectedItem.display);
+    }
+  };
+
+  return (
+    <div className={styles.filterContainer}>
+      <Dropdown
+        id="queueFilter"
+        items={queueItems}
+        itemToString={(item) => (item ? item.display : '')}
+        label={selectedQueueDisplay ?? t('all', 'All')}
+        onChange={handleQueueChange}
+        size={isDesktop(layout) ? 'sm' : 'lg'}
+        titleText={t('showPatientsInQueue', 'Show patients in queue:')}
+        type="inline"
+      />
+    </div>
   );
 }
 

@@ -206,6 +206,7 @@
   "serviceQueuesAdmin": "Service Queues Admin",
   "serviceRequired": "Service is required",
   "serviceType": "Service type",
+  "showPatientsInQueue": "Show patients in queue:",
   "showPatientsWithStatus": "Show patients with status:",
   "sp02": "Sp02",
   "status": "Status",
