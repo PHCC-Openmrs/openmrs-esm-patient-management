@@ -65,12 +65,7 @@ function QueueTableSection() {
       queue: selectedQueueUuid,
       status: [concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus],
     };
-  }, [
-    selectedServiceUuid,
-    selectedQueueUuid,
-    concepts.defaultTransitionStatus,
-    concepts.defaultFinishedServiceStatus,
-  ]);
+  }, [selectedServiceUuid, selectedQueueUuid, concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus]);
 
   const { queueEntries, isLoading, error, isValidating } = useQueueEntries(searchCriteria);
 
@@ -111,9 +106,7 @@ function QueueTableSection() {
     // fetched status, before applying any other filter. Otherwise a patient's older, superseded
     // "Finished Service" entry could still pass the status filter below even though they now
     // have a newer "In Service" entry.
-    const todaysLatestEntryPerPatient = dedupeQueueEntriesByPatient(
-      (queueEntries ?? []).filter(isQueueEntryFromToday),
-    );
+    const todaysLatestEntryPerPatient = dedupeQueueEntriesByPatient((queueEntries ?? []).filter(isQueueEntryFromToday));
 
     return todaysLatestEntryPerPatient
       .filter((queueEntry) => queueEntry.status?.uuid === effectiveStatusUuid)
@@ -181,10 +174,32 @@ function QueueTableSection() {
 function QueueDropdownFilter() {
   const { t } = useTranslation();
   const layout = useLayoutType();
-  const { queues } = useQueues();
-  const { selectedQueueDisplay } = useServiceQueuesStore();
+  const { selectedQueueDisplay, selectedQueueLocationUuid } = useServiceQueuesStore();
+  // Queue names are only unique within a location -- every location runs its own "Doctor Room 1",
+  // "Pharmacy", "Front Desk" and so on -- so an unscoped list repeats each name once per location.
+  // Scope it to the location currently being viewed, which is the only location whose entries this
+  // table shows anyway.
+  const { queues } = useQueues(selectedQueueLocationUuid);
 
-  const queueItems = useMemo(() => [{ uuid: 'all', display: t('all', 'All') }, ...(queues ?? [])], [queues, t]);
+  const queueItems = useMemo(() => {
+    const locationQueues = queues ?? [];
+    // With no location selected ("All"), same-named queues from different locations are back in the
+    // list together -- qualify just those with their location so they can still be told apart.
+    const ambiguousDisplays = new Set(
+      locationQueues.map(({ display }) => display).filter((display, index, all) => all.indexOf(display) !== index),
+    );
+
+    return [
+      { uuid: 'all', display: t('all', 'All') },
+      ...locationQueues.map((queue) => ({
+        uuid: queue.uuid,
+        display:
+          ambiguousDisplays.has(queue.display) && queue.location?.display
+            ? `${queue.display} (${queue.location.display})`
+            : queue.display,
+      })),
+    ];
+  }, [queues, t]);
 
   const handleQueueChange = ({ selectedItem }) => {
     if (selectedItem.uuid === 'all') {

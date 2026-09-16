@@ -4,6 +4,7 @@ import { Dropdown, DropdownSkeleton, InlineNotification, type OnChangeData } fro
 import { useConfig, useSession, PageHeader, PageHeaderContent, ServiceQueuesPictogram } from '@openmrs/esm-framework';
 import { useQueueLocations } from '../create-queue-entry/hooks/useQueueLocations';
 import {
+  updateSelectedQueue,
   updateSelectedQueueLocationUuid,
   updateSelectedQueueLocationName,
   updateSelectedService,
@@ -63,6 +64,9 @@ const PatientQueueHeader: React.FC<PatientQueueHeaderProps> = ({
 
   const handleQueueLocationChange = useCallback(
     ({ selectedItem }) => {
+      // A queue belongs to exactly one location, so any queue picked for the previous location
+      // would filter the table down to nothing here. Clear it along with the service.
+      updateSelectedQueue(null, null);
       if (selectedItem.id === 'all') {
         updateSelectedQueueLocationUuid(null);
         updateSelectedQueueLocationName(null);
