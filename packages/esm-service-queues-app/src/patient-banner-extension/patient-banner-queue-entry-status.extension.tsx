@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@carbon/react';
-import { isDesktop, showModal, useConfig, useLayoutType } from '@openmrs/esm-framework';
+import { isDesktop, showModal, useConfig, useLayoutType, useSession, userHasAccess } from '@openmrs/esm-framework';
 import { type ConfigObject } from '../config-schema';
 import { useQueueEntries } from '../hooks/useQueueEntries';
 import { getQueueFlowRule } from '../queue-flow';
@@ -34,6 +34,8 @@ const PatientBannerQueueEntryStatusInner: React.FC<Pick<PatientBannerQueueEntryS
 
     const queueEntry = queueEntries?.[0];
     const config = useConfig<ConfigObject>();
+    const session = useSession();
+    const canManageQueueEntries = userHasAccess('Manage Queue Entries', session?.user);
 
     if (!queueEntry) {
       return null;
@@ -49,17 +51,19 @@ const PatientBannerQueueEntryStatusInner: React.FC<Pick<PatientBannerQueueEntryS
           priorityComment={queueEntry.priorityComment}
           priorityConfigs={config?.priorityConfigs}
         />
-        <Button
-          kind="ghost"
-          size={isDesktop(layout) ? 'sm' : 'lg'}
-          onClick={() => {
-            const dispose = showModal(hasFlowRule ? 'queue-flow-transition-modal' : 'move-queue-entry-modal', {
-              closeModal: () => dispose(),
-              queueEntry,
-            });
-          }}>
-          {t('move', 'Move')}
-        </Button>
+        {canManageQueueEntries && (
+          <Button
+            kind="ghost"
+            size={isDesktop(layout) ? 'sm' : 'lg'}
+            onClick={() => {
+              const dispose = showModal(hasFlowRule ? 'queue-flow-transition-modal' : 'move-queue-entry-modal', {
+                closeModal: () => dispose(),
+                queueEntry,
+              });
+            }}>
+            {t('move', 'Move')}
+          </Button>
+        )}
       </div>
     );
   });
