@@ -2,7 +2,7 @@ import React from 'react';
 import { vi, describe, it, expect, test, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { launchWorkspace2 } from '@openmrs/esm-framework';
+import { launchWorkspace2, userHasAccess } from '@openmrs/esm-framework';
 import { renderWithSwr } from 'tools';
 import { useBedsGroupedByLocation } from '../summary/summary.resource';
 import BedAdministrationTable from './bed-administration-table.component';
@@ -13,6 +13,7 @@ vi.mock('../summary/summary.resource', () => ({
 
 const mockUseBedsGroupedByLocation = vi.mocked(useBedsGroupedByLocation);
 const mockLaunchWorkspace2 = vi.mocked(launchWorkspace2);
+const mockUserHasAccess = vi.mocked(userHasAccess);
 
 const mockMutateBeds = vi.fn();
 
@@ -61,6 +62,9 @@ const defaultHookReturn = {
 describe('BedAdministrationTable', () => {
   beforeEach(() => {
     mockUseBedsGroupedByLocation.mockReturnValue(defaultHookReturn);
+    // The Add bed / Edit bed buttons are gated behind the "Edit Beds" privilege, and the framework
+    // mock's userHasAccess returns undefined by default -- which would hide them from every test here.
+    mockUserHasAccess.mockReturnValue(true);
   });
 
   it('renders table headers correctly', () => {
