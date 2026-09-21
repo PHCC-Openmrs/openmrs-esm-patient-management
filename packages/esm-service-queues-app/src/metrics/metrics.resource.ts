@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { type ConfigObject } from '../config-schema';
 import { useQueueEntries } from '../hooks/useQueueEntries';
 import { dedupeQueueEntriesByPatient, isQueueEntryFromToday } from '../service-queues.resource';
+import { useServiceQueuesStore } from '../store/store';
 
 /**
  * Fetches every status this deployment's workflow can produce (In Service, Finished Service) in
@@ -16,19 +17,31 @@ import { dedupeQueueEntriesByPatient, isQueueEntryFromToday } from '../service-q
  * Service entries are naturally still open, Finished Service ones are always already ended, and
  * any stale/ended intermediate room-step entries that slip in regardless get discarded by the
  * per-patient "keep only the latest" dedup.
+ *
+ * Location is deliberately *not* sent as a search param: the REST endpoint's `location` filter
+ * matches the location of the entry's *queue* (`q.location`), whereas the queue table - and the
+ * table's own Location column - scope by the location of the patient's *visit*. Filtering
+ * server-side by queue location made these cards count a different population than the table
+ * they sit above: a patient whose visit is at location A but who was placed in a queue belonging
+ * to location B was counted at B while being listed at A. So fetch across locations and apply
+ * the same client-side visit-location filter the table uses, against the same
+ * selectedQueueLocationUuid (which mirrors the session location unless the user picks another).
+ * The dedup runs first, exactly as in the table, so both arrive at identical numbers.
  */
 function useTodaysLatestQueueEntryPerPatient() {
   const { concepts } = useConfig<ConfigObject>();
-  const { sessionLocation } = useSession();
+  const { selectedQueueLocationUuid } = useServiceQueuesStore();
 
   const { queueEntries, isLoading, isValidating } = useQueueEntries({
     status: [concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus],
-    location: sessionLocation?.uuid,
   });
 
   const todaysLatestEntryPerPatient = useMemo(
-    () => dedupeQueueEntriesByPatient((queueEntries ?? []).filter(isQueueEntryFromToday)),
-    [queueEntries],
+    () =>
+      dedupeQueueEntriesByPatient((queueEntries ?? []).filter(isQueueEntryFromToday)).filter(
+        (entry) => !selectedQueueLocationUuid || entry.visit?.location?.uuid === selectedQueueLocationUuid,
+      ),
+    [queueEntries, selectedQueueLocationUuid],
   );
 
   return { todaysLatestEntryPerPatient, isLoading, isValidating };

@@ -7,6 +7,8 @@ import {
   mockQueueEntries,
   mockQueueEntryAlice,
   mockQueueRooms,
+  mockQueueSurgery,
+  mockQueueTriage,
   mockServices,
   mockSession,
 } from '__mocks__';
@@ -15,7 +17,7 @@ import { renderWithSwr } from 'tools';
 import { type ConfigObject, configSchema } from '../config-schema';
 import { useQueueLocations } from '../create-queue-entry/hooks/useQueueLocations';
 import { useQueueEntries } from '../hooks/useQueueEntries';
-import { updateSelectedQueueStatus } from '../store/store';
+import { updateSelectedQueue, updateSelectedQueueStatus } from '../store/store';
 import DefaultQueueTable from '../queue-table/default-queue-table.component';
 
 const mockUseConfig = vi.mocked(useConfig<ConfigObject>);
@@ -62,9 +64,10 @@ describe('DefaultQueueTable', () => {
   });
 
   afterEach(() => {
-    // Selected queue status is persisted in session storage via the global service-queues store,
-    // so it must be reset explicitly to avoid leaking into other tests.
+    // Selected queue status and queue are persisted in session storage via the global
+    // service-queues store, so they must be reset explicitly to avoid leaking into other tests.
     updateSelectedQueueStatus(undefined, undefined);
+    updateSelectedQueue(undefined, undefined);
   });
 
   it('fetches both In Service and Finished Service in one request, with no isEnded filter, regardless of the selected status', async () => {
@@ -80,6 +83,70 @@ describe('DefaultQueueTable', () => {
       expect.objectContaining({ status: [defaultTransitionStatus, defaultFinishedServiceStatus] }),
     );
     expect(criteria).not.toHaveProperty('isEnded');
+  });
+
+  it('does not scope the request to the selected queue', async () => {
+    // Scoping the query to one queue hides the other half of a room-to-room move from the
+    // per-patient dedup, which is what the next test exercises.
+    updateSelectedQueue(mockQueueSurgery.uuid, mockQueueSurgery.display);
+
+    rendeDefaultQueueTable();
+    await screen.findByRole('table');
+
+    expect(mockUseQueueEntries.mock.calls.at(-1)[0]).not.toHaveProperty('queue');
+  });
+
+  it('lists a patient moved between rooms only under the room they moved to, not the one they left', async () => {
+    // Moving a patient ends their entry in the room they left and opens a new one in the
+    // destination room. Both are "In Service" and both belong to today's visit, so only the
+    // per-patient dedup distinguishes them - and it can only do so if entries from every queue
+    // were fetched, not just the selected one.
+    const now = new Date();
+    const anHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+    const nowIso = now.toISOString();
+    const todaysVisit = { ...mockQueueEntryAlice.visit, startDatetime: nowIso, stopDatetime: null };
+
+    const entryInRoomSheLeft = {
+      ...mockQueueEntryAlice,
+      uuid: 'alice-room-left',
+      queue: mockQueueTriage,
+      status: inServiceStatus,
+      startedAt: anHourAgo,
+      endedAt: nowIso,
+      visit: todaysVisit,
+    };
+    const entryInRoomSheMovedTo = {
+      ...mockQueueEntryAlice,
+      uuid: 'alice-room-moved-to',
+      queue: mockQueueSurgery,
+      status: inServiceStatus,
+      startedAt: nowIso,
+      endedAt: null,
+      visit: todaysVisit,
+    };
+    mockUseQueueEntries.mockReturnValue({
+      queueEntries: [entryInRoomSheLeft, entryInRoomSheMovedTo],
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: vi.fn(),
+      totalCount: 2,
+    });
+
+    updateSelectedQueue(mockQueueTriage.uuid, mockQueueTriage.display);
+    const { unmount } = rendeDefaultQueueTable();
+    await screen.findByRole('table');
+
+    expect(screen.getByText(/no patients to display/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Alice Johnson/i })).not.toBeInTheDocument();
+
+    unmount();
+
+    updateSelectedQueue(mockQueueSurgery.uuid, mockQueueSurgery.display);
+    rendeDefaultQueueTable();
+    await screen.findByRole('table');
+
+    expect(screen.getAllByRole('link', { name: /Alice Johnson/i })).toHaveLength(1);
   });
 
   it('renders an empty state view if data is unavailable', async () => {
@@ -321,5 +388,5 @@ describe('DefaultQueueTable', () => {
 });
 
 function rendeDefaultQueueTable() {
-  renderWithSwr(<DefaultQueueTable />);
+  return renderWithSwr(<DefaultQueueTable />);
 }

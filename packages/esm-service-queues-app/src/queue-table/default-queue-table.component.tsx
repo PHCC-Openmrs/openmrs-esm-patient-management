@@ -60,12 +60,19 @@ function QueueTableSection() {
     // still open, Finished Service ones are always already ended, and any stale/ended
     // intermediate room-step entries that slip in regardless get discarded by the per-patient
     // "keep only the latest" dedup below.
+    //
+    // The selected queue is deliberately not sent as a search param either, for the same reason.
+    // Moving a patient between rooms ends their entry in the room they left and opens a new one
+    // in the room they moved to, so a query scoped to a single queue only ever sees one side of
+    // that move and the dedup below has nothing to compare against: the patient goes on being
+    // listed as still present in the room they left, while also appearing in the room they moved
+    // to. Fetch across queues - exactly as the "All" option already does - and apply the queue
+    // filter client-side, after the dedup has settled which entry is the patient's current one.
     return {
       service: selectedServiceUuid,
-      queue: selectedQueueUuid,
       status: [concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus],
     };
-  }, [selectedServiceUuid, selectedQueueUuid, concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus]);
+  }, [selectedServiceUuid, concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus]);
 
   const { queueEntries, isLoading, error, isValidating } = useQueueEntries(searchCriteria);
 
@@ -109,6 +116,7 @@ function QueueTableSection() {
     const todaysLatestEntryPerPatient = dedupeQueueEntriesByPatient((queueEntries ?? []).filter(isQueueEntryFromToday));
 
     return todaysLatestEntryPerPatient
+      .filter((queueEntry) => !selectedQueueUuid || queueEntry.queue?.uuid === selectedQueueUuid)
       .filter((queueEntry) => queueEntry.status?.uuid === effectiveStatusUuid)
       .filter(
         (queueEntry) => !selectedQueueLocationUuid || queueEntry.visit?.location?.uuid === selectedQueueLocationUuid,
@@ -131,6 +139,7 @@ function QueueTableSection() {
     queueEntries,
     searchTerm,
     effectiveStatusUuid,
+    selectedQueueUuid,
     selectedQueueLocationUuid,
     selectedProgramUuid,
     programsByPatientUuid,

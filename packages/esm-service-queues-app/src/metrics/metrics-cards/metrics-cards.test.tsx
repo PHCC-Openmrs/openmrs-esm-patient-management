@@ -6,6 +6,7 @@ import { mockSession, mockPatientAlice, mockPatientBrian } from '__mocks__';
 import { renderWithSwr } from 'tools';
 import { type ConfigObject, configSchema } from '../../config-schema';
 import { useQueueEntries } from '../../hooks/useQueueEntries';
+import { updateSelectedQueueLocationUuid } from '../../store/store';
 import { type QueueEntry } from '../../types';
 import CheckedInPatientsExtension from './checked-in-patients.extension';
 import CompletedVisitsExtension from './completed-visits.extension';
@@ -49,9 +50,12 @@ describe('service queues metrics cards', () => {
   beforeEach(() => {
     mockUseConfig.mockReturnValue(defaultConfig as ConfigObject);
     mockUseSession.mockReturnValue(mockSession.data);
+    // The store is global and persisted to sessionStorage - reset the location scope so each
+    // test starts unscoped.
+    updateSelectedQueueLocationUuid(null);
   });
 
-  it('fetches both In Service and Finished Service in one request, with no isEnded filter, and the session location', () => {
+  it('fetches both In Service and Finished Service in one request, with no isEnded filter', () => {
     mockUseQueueEntries.mockReturnValue({
       queueEntries: [],
       isLoading: false,
@@ -60,17 +64,51 @@ describe('service queues metrics cards', () => {
       totalCount: 0,
       mutate: vi.fn(),
     });
+    updateSelectedQueueLocationUuid(mockSession.data.sessionLocation.uuid);
 
     renderWithSwr(<CheckedInPatientsExtension />);
 
     const criteria = mockUseQueueEntries.mock.calls[0][0];
     expect(criteria).not.toHaveProperty('isEnded');
+    // No `location` param: the endpoint filters that by the *queue's* location, while the queue
+    // table scopes by the *visit's* location - so location is applied client-side instead, and
+    // sending it here would count a different population than the table below these cards.
+    expect(criteria).not.toHaveProperty('location');
     expect(criteria).toEqual(
       expect.objectContaining({
         status: [defaultTransitionStatus, defaultFinishedServiceStatus],
-        location: mockSession.data.sessionLocation.uuid,
       }),
     );
+  });
+
+  it('counts only entries whose visit is at the selected queue location, matching the queue table', () => {
+    // The reported bug: starting a visit at location A bumped the card at location B, because
+    // the count followed the queue's location while the table followed the visit's location.
+    const today = new Date().toISOString();
+    updateSelectedQueueLocationUuid('location-a');
+    mockUseQueueEntries.mockReturnValue({
+      queueEntries: [
+        makeEntry({
+          uuid: 'visit-here',
+          patient: mockPatientAlice,
+          visit: { startDatetime: today, location: { uuid: 'location-a', display: 'Location A' } } as any,
+        }),
+        makeEntry({
+          uuid: 'visit-elsewhere',
+          patient: mockPatientBrian,
+          visit: { startDatetime: today, location: { uuid: 'location-b', display: 'Location B' } } as any,
+        }),
+      ],
+      isLoading: false,
+      isValidating: false,
+      error: undefined,
+      totalCount: 2,
+      mutate: vi.fn(),
+    });
+
+    renderWithSwr(<CheckedInPatientsExtension />);
+
+    expect(screen.getByText('1')).toBeInTheDocument();
   });
 
   describe('CheckedInPatientsExtension', () => {
