@@ -16,8 +16,9 @@ vi.mock('@openmrs/esm-api', async (importOriginal) => ({
 
 const mockOpenmrsFetch = vi.mocked(openmrsFetch);
 
-// The REST default page size (`webservices.rest.maxResultsDefault`), which is what the queue
-// entry query runs under - it never sends a `limit`.
+// The page size this test's stub server serves at. The real query asks for a larger `limit`,
+// but the behaviour under test - revalidating pages past the first - only needs more than one
+// page to exist, whatever the size.
 const pageSize = 50;
 const nextPageUri = 'http://localhost/openmrs/ws/rest/v1/queue-entry?startIndex=50';
 
@@ -25,8 +26,8 @@ function queueEntry(uuid: string, queueDisplay: string) {
   return { uuid, display: uuid, queue: { uuid: 'queue-uuid', display: queueDisplay } } as unknown as QueueEntry;
 }
 
-// Entries come back oldest-first, so a site with more than one page of history has all of
-// today's entries - the only ones any queue view actually displays - on the *last* page.
+// Entries come back oldest-first, so when a query does overflow a single page, the newest
+// entries - the ones the queue views actually display - are on the *last* page.
 const firstPage = Array.from({ length: pageSize }, (_, i) => queueEntry(`historical-entry-${i}`, 'Front Desk'));
 
 function pageResponse(results: QueueEntry[], hasNext: boolean) {

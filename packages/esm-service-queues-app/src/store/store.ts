@@ -23,6 +23,9 @@ export interface ServiceQueuesState {
   selectedQueueStatusDisplay: string;
   selectedQueueUuid?: string;
   selectedQueueDisplay?: string;
+  selectedPriorityUuid?: string;
+  selectedPriorityDisplay?: string;
+  queueTableSearchTerm?: string;
 }
 
 const initialServiceQueuesState: ServiceQueuesState = {
@@ -36,6 +39,12 @@ const initialServiceQueuesState: ServiceQueuesState = {
   selectedQueueStatusDisplay: getValueFromSessionStorage('queueStatusDisplay'),
   selectedQueueUuid: getValueFromSessionStorage('queueUuid'),
   selectedQueueDisplay: getValueFromSessionStorage('queueDisplay'),
+  selectedPriorityUuid: getValueFromSessionStorage('queuePriorityUuid'),
+  selectedPriorityDisplay: getValueFromSessionStorage('queuePriorityDisplay'),
+  // Deliberately not restored from session storage, unlike the dropdown filters: a search term
+  // left over from a previous session would silently hide rows on a fresh load, with only a
+  // pre-filled box to explain why.
+  queueTableSearchTerm: '',
 };
 
 const serviceQueuesStore = createGlobalStore<ServiceQueuesState>('serviceQueues', initialServiceQueuesState);
@@ -68,6 +77,14 @@ export const updateSelectedQueueLocationUuid = (currentLocationUuid: string) => 
   serviceQueuesStore.setState({ selectedQueueLocationUuid: currentLocationUuid });
 };
 
+/**
+ * Sentinel stored in `selectedQueueStatusUuid` when the user explicitly picks "All" in the status
+ * dropdown. It has to be distinguishable from an absent selection: absent means "nothing picked
+ * yet", which the queue table answers with its own default of "In Service", whereas "All" is a
+ * deliberate request to see every status at once.
+ */
+export const ALL_QUEUE_STATUSES_UUID = 'all';
+
 export const updateSelectedQueueStatus = (currentQueueStatusUuid: string, currentQueueStatusDisplay: string) => {
   updateValueInSessionStorage('queueStatusUuid', currentQueueStatusUuid);
   updateValueInSessionStorage('queueStatusDisplay', currentQueueStatusDisplay);
@@ -84,6 +101,23 @@ export const updateSelectedQueue = (currentQueueUuid: string, currentQueueDispla
     selectedQueueUuid: currentQueueUuid,
     selectedQueueDisplay: currentQueueDisplay,
   });
+};
+
+export const updateSelectedPriority = (currentPriorityUuid: string, currentPriorityDisplay: string) => {
+  updateValueInSessionStorage('queuePriorityUuid', currentPriorityUuid);
+  updateValueInSessionStorage('queuePriorityDisplay', currentPriorityDisplay);
+  serviceQueuesStore.setState({
+    selectedPriorityUuid: currentPriorityUuid,
+    selectedPriorityDisplay: currentPriorityDisplay,
+  });
+};
+
+/**
+ * The queue table's free-text search lives in the store rather than in the table's own state
+ * because the metrics cards above the table count the same population and have to narrow with it.
+ */
+export const updateQueueTableSearchTerm = (searchTerm: string) => {
+  serviceQueuesStore.setState({ queueTableSearchTerm: searchTerm });
 };
 
 export function useServiceQueuesStore() {

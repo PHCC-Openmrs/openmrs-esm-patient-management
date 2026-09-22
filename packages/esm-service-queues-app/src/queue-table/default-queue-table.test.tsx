@@ -1,9 +1,11 @@
 import { getDefaultsFromConfigSchema, useConfig, useSession } from '@openmrs/esm-framework';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {
   mockLocationSurgery,
   mockLocationTriage,
+  mockPatientBrian,
   mockQueueEntries,
   mockQueueEntryAlice,
   mockQueueRooms,
@@ -17,13 +19,15 @@ import { renderWithSwr } from 'tools';
 import { type ConfigObject, configSchema } from '../config-schema';
 import { useQueueLocations } from '../create-queue-entry/hooks/useQueueLocations';
 import { useQueueEntries } from '../hooks/useQueueEntries';
-import { updateSelectedQueue, updateSelectedQueueStatus } from '../store/store';
+import { useQueues } from '../hooks/useQueues';
+import { ALL_QUEUE_STATUSES_UUID, updateSelectedQueue, updateSelectedQueueStatus } from '../store/store';
 import DefaultQueueTable from '../queue-table/default-queue-table.component';
 
 const mockUseConfig = vi.mocked(useConfig<ConfigObject>);
 const mockUseQueueEntries = vi.mocked(useQueueEntries);
 const mockQueueLocations = vi.mocked(useQueueLocations);
 const mockUseSession = vi.mocked(useSession);
+const mockUseQueues = vi.mocked(useQueues);
 const { defaultTransitionStatus, defaultFinishedServiceStatus } = getDefaultsFromConfigSchema(configSchema).concepts;
 const inServiceStatus = { uuid: defaultTransitionStatus, display: 'In Service' };
 const finishedServiceStatus = { uuid: defaultFinishedServiceStatus, display: 'Finished Service' };
@@ -52,6 +56,9 @@ describe('DefaultQueueTable', () => {
       visitQueueNumberAttributeUuid: 'c61ce16f-272a-41e7-9924-4c555d0932c5',
     });
     mockUseSession.mockReturnValue(mockSession.data);
+    // Restored explicitly because the status-filter test below swaps in queues that carry
+    // allowedStatuses, which would otherwise leak into whichever test runs after it.
+    mockUseQueues.mockReturnValue({ queues: mockServices } as ReturnType<typeof useQueues>);
     mockQueueLocations.mockReturnValue({ queueLocations: [], isLoading: false, error: null });
     mockUseQueueEntries.mockReturnValue({
       queueEntries: [],
@@ -384,6 +391,76 @@ describe('DefaultQueueTable', () => {
 
     expect(screen.getByText(/no patients to display/i)).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Alice Johnson/i })).not.toBeInTheDocument();
+  });
+
+  it('lists every status side by side when "All" is selected', async () => {
+    const nowIso = new Date().toISOString();
+    const aliceInService = {
+      ...mockQueueEntryAlice,
+      uuid: 'alice-in-service',
+      status: inServiceStatus,
+      startedAt: nowIso,
+      endedAt: null,
+      visit: { ...mockQueueEntryAlice.visit, startDatetime: nowIso, stopDatetime: null },
+    };
+    const brianFinished = {
+      ...mockQueueEntryAlice,
+      uuid: 'brian-finished',
+      display: mockPatientBrian.display,
+      patient: mockPatientBrian,
+      status: finishedServiceStatus,
+      startedAt: nowIso,
+      endedAt: nowIso,
+      visit: { ...mockQueueEntryAlice.visit, startDatetime: nowIso, stopDatetime: nowIso },
+    };
+    updateSelectedQueueStatus(ALL_QUEUE_STATUSES_UUID, 'All');
+    mockUseQueueEntries.mockReturnValue({
+      queueEntries: [aliceInService, brianFinished],
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: vi.fn(),
+      totalCount: 2,
+    });
+
+    rendeDefaultQueueTable();
+    await screen.findByRole('table');
+
+    // Neither status is filtered out -- the default view would have shown only Alice.
+    expect(screen.getByRole('link', { name: /Alice Johnson/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Brian Johnson/i })).toBeInTheDocument();
+  });
+
+  it('offers All alongside each real status in the status filter, and defaults to In Service', async () => {
+    const user = userEvent.setup();
+    mockUseQueues.mockReturnValue({
+      queues: [
+        {
+          ...mockQueueTriage,
+          // "Waiting" (defaultStatusConceptUuid) is deliberately not offered: this table only ever
+          // fetches the in-service and finished-service populations.
+          allowedStatuses: [
+            { uuid: getDefaultsFromConfigSchema(configSchema).concepts.defaultStatusConceptUuid, display: 'Waiting' },
+            inServiceStatus,
+            finishedServiceStatus,
+          ],
+        },
+      ],
+      isLoading: false,
+      error: undefined,
+      mutate: vi.fn(),
+    });
+
+    rendeDefaultQueueTable();
+    await screen.findByRole('table');
+
+    const statusFilter = screen.getByRole('combobox', { name: /show patients with status/i });
+    expect(statusFilter).toHaveTextContent(/in service/i);
+
+    await user.click(statusFilter);
+
+    const options = within(screen.getByRole('listbox', { name: /show patients with status/i })).getAllByRole('option');
+    expect(options.map((option) => option.textContent)).toEqual(['All', 'Finished Service', 'In Service']);
   });
 });
 

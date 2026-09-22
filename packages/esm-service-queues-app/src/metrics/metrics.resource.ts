@@ -3,63 +3,23 @@ import { useConfig, useSession, type Visit, openmrsFetch, restBaseUrl } from '@o
 import dayjs from 'dayjs';
 import useSWR from 'swr';
 import { type ConfigObject } from '../config-schema';
-import { useQueueEntries } from '../hooks/useQueueEntries';
-import { dedupeQueueEntriesByPatient, isQueueEntryFromToday } from '../service-queues.resource';
-import { useServiceQueuesStore } from '../store/store';
-
-/**
- * Fetches every status this deployment's workflow can produce (In Service, Finished Service) in
- * one request - mirroring default-queue-table.component.tsx exactly - then reduces to each
- * patient's single most current entry today. A patient who finished one visit and started a new
- * one later the same day would otherwise still be counted under "Finished Service" for their
- * older, superseded entry: a query scoped to just one status has no way to know a newer entry
- * with a different status now exists for the same patient. isEnded is intentionally omitted: In
- * Service entries are naturally still open, Finished Service ones are always already ended, and
- * any stale/ended intermediate room-step entries that slip in regardless get discarded by the
- * per-patient "keep only the latest" dedup.
- *
- * Location is deliberately *not* sent as a search param: the REST endpoint's `location` filter
- * matches the location of the entry's *queue* (`q.location`), whereas the queue table - and the
- * table's own Location column - scope by the location of the patient's *visit*. Filtering
- * server-side by queue location made these cards count a different population than the table
- * they sit above: a patient whose visit is at location A but who was placed in a queue belonging
- * to location B was counted at B while being listed at A. So fetch across locations and apply
- * the same client-side visit-location filter the table uses, against the same
- * selectedQueueLocationUuid (which mirrors the session location unless the user picks another).
- * The dedup runs first, exactly as in the table, so both arrive at identical numbers.
- */
-function useTodaysLatestQueueEntryPerPatient() {
-  const { concepts } = useConfig<ConfigObject>();
-  const { selectedQueueLocationUuid } = useServiceQueuesStore();
-
-  const { queueEntries, isLoading, isValidating } = useQueueEntries({
-    status: [concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus],
-  });
-
-  const todaysLatestEntryPerPatient = useMemo(
-    () =>
-      dedupeQueueEntriesByPatient((queueEntries ?? []).filter(isQueueEntryFromToday)).filter(
-        (entry) => !selectedQueueLocationUuid || entry.visit?.location?.uuid === selectedQueueLocationUuid,
-      ),
-    [queueEntries, selectedQueueLocationUuid],
-  );
-
-  return { todaysLatestEntryPerPatient, isLoading, isValidating };
-}
+import { useCurrentQueueEntries } from '../hooks/useCurrentQueueEntries';
 
 /**
  * Count of queue entries currently "In Service" (i.e. today's checked-in patients who are
  * actively being attended to right now) - the same population the "Patients Currently In
  * Queue" table shows when filtered to "In Service", not a separately-tallied /visit count that
- * can drift from what that table displays.
+ * can drift from what that table displays. Every filter the user has picked (service, queue
+ * room, location, program) is already applied by useCurrentQueueEntries, so the card always
+ * counts exactly the patients listed below it.
  */
 export function useCheckedInPatients() {
   const { concepts } = useConfig<ConfigObject>();
-  const { todaysLatestEntryPerPatient, isLoading, isValidating } = useTodaysLatestQueueEntryPerPatient();
+  const { currentQueueEntries, isLoading, isValidating } = useCurrentQueueEntries();
 
   const checkedInPatientsCount = useMemo(
-    () => todaysLatestEntryPerPatient.filter((entry) => entry.status?.uuid === concepts.defaultTransitionStatus).length,
-    [todaysLatestEntryPerPatient, concepts.defaultTransitionStatus],
+    () => currentQueueEntries.filter((entry) => entry.status?.uuid === concepts.defaultTransitionStatus).length,
+    [currentQueueEntries, concepts.defaultTransitionStatus],
   );
 
   return {
@@ -70,16 +30,16 @@ export function useCheckedInPatients() {
 }
 
 /**
- * Count (and average duration) of visits whose queue entry moved to "Finished Service" today -
- * mirrors the queue table's own Finished Service view.
+ * Count (and average duration) of visits whose queue entry moved to "Finished Service" today,
+ * within whatever the user has filtered to - mirrors the queue table's own Finished Service view.
  */
 export function useCompletedVisits() {
   const { concepts } = useConfig<ConfigObject>();
-  const { todaysLatestEntryPerPatient, isLoading, isValidating } = useTodaysLatestQueueEntryPerPatient();
+  const { currentQueueEntries, isLoading, isValidating } = useCurrentQueueEntries();
 
   const completedToday = useMemo(
-    () => todaysLatestEntryPerPatient.filter((entry) => entry.status?.uuid === concepts.defaultFinishedServiceStatus),
-    [todaysLatestEntryPerPatient, concepts.defaultFinishedServiceStatus],
+    () => currentQueueEntries.filter((entry) => entry.status?.uuid === concepts.defaultFinishedServiceStatus),
+    [currentQueueEntries, concepts.defaultFinishedServiceStatus],
   );
 
   const completedVisitsCount = completedToday.length;
@@ -93,7 +53,9 @@ export function useCompletedVisits() {
       })
       .filter((duration): duration is number => duration != null);
 
-    return durations.length ? Math.round(durations.reduce((sum, duration) => sum + duration, 0) / durations.length) : null;
+    return durations.length
+      ? Math.round(durations.reduce((sum, duration) => sum + duration, 0) / durations.length)
+      : null;
   }, [completedToday]);
 
   return {

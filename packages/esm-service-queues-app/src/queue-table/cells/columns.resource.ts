@@ -29,7 +29,16 @@ import { queueTableActionColumn } from './queue-table-action-cell.component';
 // returns the columns to display for a queue table of a particular queue + status.
 // For a table displaying all entries of a particular queue, the status param should be null
 // For a table displaying all entries from all queues, both params should be null
-export function useColumns(queue: string, status: string): QueueTableColumn[] {
+//
+// `silent` suppresses the invalid-column-config toast for callers that only need the columns to
+// know what the table's search box searches over (useCurrentQueueEntries), rather than to render
+// a table. Without it a misconfigured column id would toast once per such caller - the table plus
+// every metrics card above it - instead of once.
+export function useColumns(
+  queue: string,
+  status: string,
+  { silent = false }: { silent?: boolean } = {},
+): QueueTableColumn[] {
   const { t } = useTranslation();
   const config = useConfig<ConfigObject>();
   const { queueTables, visitQueueNumberAttributeUuid } = config;
@@ -78,7 +87,7 @@ export function useColumns(queue: string, status: string): QueueTableColumn[] {
 
   const columns = tableDefinition?.columns?.map((columnId) => {
     const column = columnsMap.get(columnId);
-    if (!column) {
+    if (!column && !silent) {
       showToast({
         title: t('invalidColumnConfig', 'Invalid column config'),
         kind: 'warning',

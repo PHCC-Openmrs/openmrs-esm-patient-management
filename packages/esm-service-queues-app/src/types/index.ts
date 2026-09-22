@@ -412,6 +412,8 @@ export interface QueueEntrySearchCriteria {
   status?: Array<string> | string;
   isEnded?: boolean;
   patient?: string;
+  /** ISO-8601 datetime; only entries that started at or after it are returned. */
+  startedOnOrAfter?: string;
 }
 
 // TODO: The follow types match the types from backend.

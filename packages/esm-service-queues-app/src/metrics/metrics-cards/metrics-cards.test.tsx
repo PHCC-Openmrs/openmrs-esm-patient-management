@@ -6,7 +6,14 @@ import { mockSession, mockPatientAlice, mockPatientBrian } from '__mocks__';
 import { renderWithSwr } from 'tools';
 import { type ConfigObject, configSchema } from '../../config-schema';
 import { useQueueEntries } from '../../hooks/useQueueEntries';
-import { updateSelectedQueueLocationUuid } from '../../store/store';
+import {
+  updateQueueTableSearchTerm,
+  updateSelectedPriority,
+  updateSelectedQueue,
+  updateSelectedQueueLocationUuid,
+  updateSelectedQueueStatus,
+  updateSelectedService,
+} from '../../store/store';
 import { type QueueEntry } from '../../types';
 import CheckedInPatientsExtension from './checked-in-patients.extension';
 import CompletedVisitsExtension from './completed-visits.extension';
@@ -50,9 +57,14 @@ describe('service queues metrics cards', () => {
   beforeEach(() => {
     mockUseConfig.mockReturnValue(defaultConfig as ConfigObject);
     mockUseSession.mockReturnValue(mockSession.data);
-    // The store is global and persisted to sessionStorage - reset the location scope so each
-    // test starts unscoped.
+    // The store is global and persisted to sessionStorage - reset every filter so each test
+    // starts unscoped.
     updateSelectedQueueLocationUuid(null);
+    updateSelectedQueue(null, null);
+    updateSelectedService(null, null);
+    updateSelectedPriority(null, null);
+    updateSelectedQueueStatus(null, null);
+    updateQueueTableSearchTerm('');
   });
 
   it('fetches both In Service and Finished Service in one request, with no isEnded filter', () => {
@@ -111,10 +123,67 @@ describe('service queues metrics cards', () => {
     expect(screen.getByText('1')).toBeInTheDocument();
   });
 
+  it('counts only entries in the selected queue/room, matching the queue table below', () => {
+    // The cards sit directly above the table and are read as its totals, so picking a room in
+    // the table's "Show patients in queue" filter has to scope them too - otherwise the card
+    // reports the whole location while the table lists one room.
+    const today = new Date().toISOString();
+    updateSelectedQueue('room-3', 'Doctor Room 3');
+    mockUseQueueEntries.mockReturnValue({
+      queueEntries: [
+        makeEntry({
+          uuid: 'in-room-3',
+          patient: mockPatientAlice,
+          queue: { uuid: 'room-3', display: 'Doctor Room 3' } as any,
+          visit: { startDatetime: today } as any,
+        }),
+        makeEntry({
+          uuid: 'in-room-1',
+          patient: mockPatientBrian,
+          queue: { uuid: 'room-1', display: 'Doctor Room 1' } as any,
+          visit: { startDatetime: today } as any,
+        }),
+      ],
+      isLoading: false,
+      isValidating: false,
+      error: undefined,
+      totalCount: 2,
+      mutate: vi.fn(),
+    });
+
+    renderWithSwr(<CheckedInPatientsExtension />);
+
+    expect(screen.getByText('1')).toBeInTheDocument();
+  });
+
+  it('scopes the count to the selected service, the same way the queue table queries it', () => {
+    updateSelectedService('service-uuid', 'Triage');
+    mockUseQueueEntries.mockReturnValue({
+      queueEntries: [],
+      isLoading: false,
+      isValidating: false,
+      error: undefined,
+      totalCount: 0,
+      mutate: vi.fn(),
+    });
+
+    renderWithSwr(<CheckedInPatientsExtension />);
+
+    expect(mockUseQueueEntries.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        service: 'service-uuid',
+        status: [defaultTransitionStatus, defaultFinishedServiceStatus],
+      }),
+    );
+  });
+
   describe('CheckedInPatientsExtension', () => {
     it('shows the count of distinct patients with an "In Service" entry', async () => {
       mockUseQueueEntries.mockReturnValue({
-        queueEntries: [makeEntry({ uuid: 'e1', patient: mockPatientAlice }), makeEntry({ uuid: 'e2', patient: mockPatientBrian })],
+        queueEntries: [
+          makeEntry({ uuid: 'e1', patient: mockPatientAlice }),
+          makeEntry({ uuid: 'e2', patient: mockPatientBrian }),
+        ],
         isLoading: false,
         isValidating: false,
         error: undefined,
@@ -130,7 +199,10 @@ describe('service queues metrics cards', () => {
 
     it('does not double-count a patient with more than one open entry', async () => {
       mockUseQueueEntries.mockReturnValue({
-        queueEntries: [makeEntry({ uuid: 'e1', patient: mockPatientAlice }), makeEntry({ uuid: 'e2', patient: mockPatientAlice })],
+        queueEntries: [
+          makeEntry({ uuid: 'e1', patient: mockPatientAlice }),
+          makeEntry({ uuid: 'e2', patient: mockPatientAlice }),
+        ],
         isLoading: false,
         isValidating: false,
         error: undefined,
@@ -411,6 +483,93 @@ describe('service queues metrics cards', () => {
       renderWithSwr(<AverageVisitDurationExtension />);
 
       expect(await screen.findByText('--')).toBeInTheDocument();
+    });
+  });
+
+  // Every filter the toolbar above the queue table offers has to narrow these cards too,
+  // otherwise the totals describe a different population than the rows underneath them.
+  describe('filters shared with the queue table', () => {
+    const notUrgent = { uuid: 'f4620bfa-3625-4883-bd3f-84c2cce14470', display: 'Not Urgent' };
+    const emergency = { uuid: '04f6f7e0-e3cb-4e13-a133-4479f759574e', display: 'Emergency' };
+
+    function mockEntries(entries: Array<QueueEntry>) {
+      mockUseQueueEntries.mockReturnValue({
+        queueEntries: entries,
+        isLoading: false,
+        isValidating: false,
+        error: undefined,
+        totalCount: entries.length,
+        mutate: vi.fn(),
+      });
+    }
+
+    it('counts only the selected priority', async () => {
+      mockEntries([
+        makeEntry({ uuid: 'a', patient: mockPatientAlice, priority: emergency }),
+        makeEntry({ uuid: 'b', patient: mockPatientBrian, priority: notUrgent }),
+      ]);
+      updateSelectedPriority(emergency.uuid, emergency.display);
+
+      renderWithSwr(<CheckedInPatientsExtension />);
+
+      // Alice only - Brian is Not Urgent.
+      expect(await screen.findByText('1')).toBeInTheDocument();
+    });
+
+    it('counts every priority when the priority filter is cleared', async () => {
+      mockEntries([
+        makeEntry({ uuid: 'a', patient: mockPatientAlice, priority: emergency }),
+        makeEntry({ uuid: 'b', patient: mockPatientBrian, priority: notUrgent }),
+      ]);
+
+      renderWithSwr(<CheckedInPatientsExtension />);
+
+      expect(await screen.findByText('2')).toBeInTheDocument();
+    });
+
+    it("narrows with the table's search box, so the total matches the rows left on screen", async () => {
+      mockEntries([
+        makeEntry({ uuid: 'a', patient: mockPatientAlice }),
+        makeEntry({ uuid: 'b', patient: mockPatientBrian }),
+      ]);
+      updateQueueTableSearchTerm('alice');
+
+      renderWithSwr(<CheckedInPatientsExtension />);
+
+      expect(await screen.findByText('1')).toBeInTheDocument();
+    });
+
+    it('zeroes a card whose status the user has explicitly filtered away', async () => {
+      mockEntries([makeEntry({ uuid: 'a', patient: mockPatientAlice, status: inServiceStatus })]);
+      updateSelectedQueueStatus(finishedServiceStatus.uuid, finishedServiceStatus.display);
+
+      renderWithSwr(<CheckedInPatientsExtension />);
+
+      expect(await screen.findByText('0')).toBeInTheDocument();
+    });
+
+    // Regression guard: the queue table falls back to "In Service" when no status has been
+    // picked. Treating that fallback as a filter left these two cards reading 0 and "--" on
+    // every fresh load, which is the one state the page is almost always in.
+    it('still reports finished visits when no status has been explicitly picked', async () => {
+      const startDatetime = new Date();
+      const stopDatetime = new Date(startDatetime.getTime() + 30 * 60 * 1000);
+      mockEntries([
+        makeEntry({
+          uuid: 'a',
+          patient: mockPatientAlice,
+          status: finishedServiceStatus,
+          visit: {
+            uuid: 'visit-a',
+            startDatetime: startDatetime.toISOString(),
+            stopDatetime: stopDatetime.toISOString(),
+          },
+        } as Partial<QueueEntry>),
+      ]);
+
+      renderWithSwr(<CompletedVisitsExtension />);
+
+      expect(await screen.findByText('1')).toBeInTheDocument();
     });
   });
 });
