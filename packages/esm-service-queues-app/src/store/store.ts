@@ -78,10 +78,10 @@ export const updateSelectedQueueLocationUuid = (currentLocationUuid: string) => 
 };
 
 /**
- * Sentinel stored in `selectedQueueStatusUuid` when the user explicitly picks "All" in the status
- * dropdown. It has to be distinguishable from an absent selection: absent means "nothing picked
- * yet", which the queue table answers with its own default of "In Service", whereas "All" is a
- * deliberate request to see every status at once.
+ * Sentinel stored in `selectedQueueStatusUuid` when the user picks "All" in the status dropdown,
+ * and the value the dropdown falls back to when nothing has been picked yet. It is never a real
+ * status concept uuid, so consumers have to treat it as "don't filter by status" rather than pass
+ * it on as a status to match - see useCurrentQueueEntries.
  */
 export const ALL_QUEUE_STATUSES_UUID = 'all';
 

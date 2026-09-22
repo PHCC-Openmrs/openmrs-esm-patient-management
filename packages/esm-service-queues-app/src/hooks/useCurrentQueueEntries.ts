@@ -12,10 +12,7 @@ import { useQueueEntries } from './useQueueEntries';
  * The single source of truth for "who is in the queue right now", shared by the queue table and
  * the metrics cards above it so the two can't disagree: every population filter the user can
  * pick is applied here, once: service, queue/room, queue location, priority, program, an
- * explicitly-chosen status and the table's free-text search. The one thing left to a caller is
- * the table's fallback to "In Service" when no status has been picked at all - that fallback is
- * the table's own default view, not a filter the user chose, and applying it to the population
- * would permanently zero the Finished Service and Average visit duration cards.
+ * explicitly-chosen status and the table's free-text search.
  *
  * Priority is applied client-side, after the dedup, for the same reason as the queue: it is a
  * property of a single entry, not of the patient. Sending priority=<uuid> as a search param would
@@ -109,12 +106,12 @@ export function useCurrentQueueEntries() {
           (queueEntry) => !selectedQueueLocationUuid || queueEntry.visit?.location?.uuid === selectedQueueLocationUuid,
         )
         .filter((queueEntry) => !selectedPriorityUuid || queueEntry.priority?.uuid === selectedPriorityUuid)
-        // Only an explicit pick of a *single* status narrows the population. The table falls back
-        // to "In Service" when nothing is picked, but applying that fallback here would leave the
-        // Finished Service and Average visit duration cards reading 0 and "--" on every fresh
-        // load - the two cards exist precisely to report the status the table isn't showing. An
-        // explicit "All" is likewise no narrowing at all: the fetch above is already bounded to
-        // the statuses this view knows about.
+        // Only an explicit pick of a *single* status narrows the population. No selection at all
+        // (a fresh session) and an explicit "All" are both the same non-narrowing: the fetch above
+        // is already bounded to the statuses this view knows about. Defaulting instead to
+        // "In Service" here would leave the Finished Service and Average visit duration cards
+        // reading 0 and "--" on every fresh load, when those two cards exist precisely to report
+        // on a status other than the one being served.
         .filter(
           (queueEntry) =>
             !selectedQueueStatusUuid ||

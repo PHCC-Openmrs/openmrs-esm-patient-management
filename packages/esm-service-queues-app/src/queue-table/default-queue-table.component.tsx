@@ -42,27 +42,13 @@ function DefaultQueueTable() {
 function QueueTableSection() {
   const { t } = useTranslation();
   const layout = useLayoutType();
-  const { concepts } = useConfig<ConfigObject>();
-  const { queueTableSearchTerm, selectedQueueStatusUuid } = useServiceQueuesStore();
+  const { queueTableSearchTerm } = useServiceQueuesStore();
 
   // Shared with the metrics cards above this table, so the cards count exactly the population the
   // table lists: every filter the user picks, including the status dropdown and the search box
-  // below, is applied there once.
+  // below, is applied there once. With no status picked -- the state a fresh session starts in --
+  // nothing is narrowed by status, so the table opens on every status side by side.
   const { currentQueueEntries, isLoading, error, isValidating } = useCurrentQueueEntries();
-
-  // Before any explicit choice is made, default to "In Service" rather than every status - a
-  // freshly-loaded queue should read as "who's being attended to right now", not lump in-service
-  // and finished patients in together. This stays here rather than in useCurrentQueueEntries
-  // because it's this table's default view, not a filter: pushing it into the shared population
-  // would leave the Finished Service and Average visit duration cards above stuck at zero.
-  // Picking "All" explicitly overrides that default and lists every status side by side.
-  const queueEntriesForTable = useMemo(() => {
-    if (selectedQueueStatusUuid === ALL_QUEUE_STATUSES_UUID) {
-      return currentQueueEntries;
-    }
-    const effectiveStatusUuid = selectedQueueStatusUuid || concepts.defaultTransitionStatus;
-    return currentQueueEntries.filter((queueEntry) => queueEntry.status?.uuid === effectiveStatusUuid);
-  }, [currentQueueEntries, selectedQueueStatusUuid, concepts.defaultTransitionStatus]);
 
   useEffect(() => {
     if (error?.message) {
@@ -93,7 +79,7 @@ function QueueTableSection() {
     <QueueTable
       ExpandedRow={QueueTableExpandedRow}
       isValidating={isValidating}
-      queueEntries={queueEntriesForTable ?? []}
+      queueEntries={currentQueueEntries ?? []}
       queueUuid={null}
       statusUuid={null}
       tableFilters={
@@ -191,13 +177,12 @@ function StatusDropdownFilter() {
     [statuses, concepts.defaultStatusConceptUuid, t],
   );
 
-  // "In Service" (defaultTransitionStatus) is what the table shows by default (see
-  // QueueTableSection), so with nothing picked yet the dropdown labels itself with that status
-  // rather than "All" -- "All" is now a real option, and claiming it while only in-service
-  // patients are listed would misdescribe what's on screen.
+  // An absent selection is the same view as an explicit "All" -- every status at once -- so the
+  // dropdown labels itself "All" until the user narrows it, matching the queue and priority
+  // dropdowns either side of it.
   const selectedStatus = useMemo(
-    () => statusItems.find((status) => status?.uuid === (selectedQueueStatusUuid ?? concepts.defaultTransitionStatus)),
-    [statusItems, selectedQueueStatusUuid, concepts.defaultTransitionStatus],
+    () => statusItems.find((status) => status?.uuid === (selectedQueueStatusUuid ?? ALL_QUEUE_STATUSES_UUID)),
+    [statusItems, selectedQueueStatusUuid],
   );
 
   const handleStatusChange = ({ selectedItem }) => {

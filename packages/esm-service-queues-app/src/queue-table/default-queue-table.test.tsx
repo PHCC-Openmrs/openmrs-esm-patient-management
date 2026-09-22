@@ -349,7 +349,8 @@ describe('DefaultQueueTable', () => {
       totalCount: 2,
     });
 
-    // Default view (no explicit selection) is "In Service" - she should show here.
+    // The dedup leaves only her later, In Service entry, so the unfiltered default view lists
+    // her exactly once rather than once per status.
     rendeDefaultQueueTable();
     await screen.findByRole('table');
     expect(screen.getByRole('link', { name: /Alice Johnson/i })).toBeInTheDocument();
@@ -393,7 +394,10 @@ describe('DefaultQueueTable', () => {
     expect(screen.queryByRole('link', { name: /Alice Johnson/i })).not.toBeInTheDocument();
   });
 
-  it('lists every status side by side when "All" is selected', async () => {
+  it.each([
+    ['by default, before any status has been picked', null],
+    ['when "All" is picked explicitly', ALL_QUEUE_STATUSES_UUID],
+  ])('lists every status side by side %s', async (_, selectedStatusUuid) => {
     const nowIso = new Date().toISOString();
     const aliceInService = {
       ...mockQueueEntryAlice,
@@ -413,7 +417,9 @@ describe('DefaultQueueTable', () => {
       endedAt: nowIso,
       visit: { ...mockQueueEntryAlice.visit, startDatetime: nowIso, stopDatetime: nowIso },
     };
-    updateSelectedQueueStatus(ALL_QUEUE_STATUSES_UUID, 'All');
+    if (selectedStatusUuid) {
+      updateSelectedQueueStatus(selectedStatusUuid, 'All');
+    }
     mockUseQueueEntries.mockReturnValue({
       queueEntries: [aliceInService, brianFinished],
       error: undefined,
@@ -426,12 +432,12 @@ describe('DefaultQueueTable', () => {
     rendeDefaultQueueTable();
     await screen.findByRole('table');
 
-    // Neither status is filtered out -- the default view would have shown only Alice.
+    // Neither status is filtered out -- only picking a single status narrows the table.
     expect(screen.getByRole('link', { name: /Alice Johnson/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Brian Johnson/i })).toBeInTheDocument();
   });
 
-  it('offers All alongside each real status in the status filter, and defaults to In Service', async () => {
+  it('offers All alongside each real status in the status filter, and defaults to All', async () => {
     const user = userEvent.setup();
     mockUseQueues.mockReturnValue({
       queues: [
@@ -455,7 +461,8 @@ describe('DefaultQueueTable', () => {
     await screen.findByRole('table');
 
     const statusFilter = screen.getByRole('combobox', { name: /show patients with status/i });
-    expect(statusFilter).toHaveTextContent(/in service/i);
+    expect(statusFilter).toHaveTextContent(/all/i);
+    expect(statusFilter).not.toHaveTextContent(/in service/i);
 
     await user.click(statusFilter);
 
