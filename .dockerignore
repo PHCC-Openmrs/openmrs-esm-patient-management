@@ -1,0 +1,42 @@
+# Applies when this checkout is used as a Docker build context -- see the
+# "patient-management-local" additional build context in
+# openmrs-distro-referenceapplication/frontend/Dockerfile, which lets the distro
+# build this repo from a local checkout instead of cloning it from GitHub.
+#
+# The point is to make the copied context look like a fresh `git clone`: the
+# Dockerfile runs `yarn install` and `yarn build` itself, so a host-built
+# node_modules is not just a huge pointless transfer, it can leak a
+# host-platform install into the image. The patterns below mirror .gitignore.
+#
+# IMPORTANT: .yarn/releases must NOT be excluded -- .yarnrc.yml sets
+# `yarnPath: .yarn/releases/yarn-4.10.3.cjs`, so dropping it breaks `yarn install`
+# inside the container. Only .yarn/cache (gitignored, re-fetched on install) and
+# the install-state are excluded.
+
+# Dependencies -- reinstalled in the container. `**/` is required: a bare
+# `node_modules` would only match the root one, leaving packages/*/node_modules.
+**/node_modules
+
+# Build output -- rebuilt in the container
+**/dist
+**/.turbo
+**/*.tgz
+**/coverage
+**/.nyc_output
+**/.eslintcache
+
+# Yarn state -- keep .yarn/releases (see note above)
+.yarn/cache
+.yarn/install-state.gz
+
+# Test artefacts
+**/test-results
+**/playwright-report
+**/playwright/.cache
+
+# Local / editor cruft
+.env
+.idea
+.vscode
+**/.DS_Store
+**/*.log
