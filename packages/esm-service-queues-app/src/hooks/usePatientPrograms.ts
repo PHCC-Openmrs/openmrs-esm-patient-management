@@ -1,4 +1,4 @@
-import { getLocale, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
+import { getLocale, openmrsFetch, restBaseUrl, useConfig } from '@openmrs/esm-framework';
 import { useMemo } from 'react';
 import useSWR from 'swr';
 import useSWRImmutable from 'swr/immutable';
@@ -38,7 +38,11 @@ export function useActivePatientPrograms(patientUuid: string) {
 
 /**
  * Every defined program in the system (not just ones with active enrollments), for populating a
- * "Service type" filter's options.
+ * "Service type" filter's options -- minus any program listed in esm-patient-programs-app's
+ * `hiddenServicePrograms` config, so a program hidden from the other Care Services pickers (the
+ * start-visit form's Service field, the "Add service" enrollment form) is hidden from this filter
+ * too. Read as an external module rather than duplicated here, so both apps stay in sync from one
+ * source; the Program itself is untouched, so anything else that reads it directly is unaffected.
  */
 export function usePrograms() {
   const url = `${restBaseUrl}/program?v=custom:(uuid,name)`;
@@ -47,9 +51,16 @@ export function usePrograms() {
     openmrsFetch,
   );
 
+  const { hiddenServicePrograms } = useConfig<{ hiddenServicePrograms: Array<string> }>({
+    externalModuleName: '@openmrs/esm-patient-programs-app',
+  });
+
   const programs = useMemo(
-    () => data?.data?.results?.slice().sort((a, b) => a.name.localeCompare(b.name, getLocale())) ?? [],
-    [data?.data?.results],
+    () =>
+      data?.data?.results
+        ?.filter((program) => !hiddenServicePrograms?.includes(program.uuid))
+        .sort((a, b) => a.name.localeCompare(b.name, getLocale())) ?? [],
+    [data?.data?.results, hiddenServicePrograms],
   );
 
   return { programs, ...rest };
