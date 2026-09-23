@@ -24,16 +24,7 @@ const columnTypes = [
 ] as const;
 type ColumnType = (typeof columnTypes)[number];
 
-const queueEntryActions = [
-  'move',
-  'call',
-  'edit',
-  'transition',
-  'remove',
-  'delete',
-  'undo',
-  'auto-assign',
-] as const;
+const queueEntryActions = ['move', 'call', 'edit', 'transition', 'remove', 'delete', 'undo', 'auto-assign'] as const;
 export type QueueEntryAction = (typeof queueEntryActions)[number];
 
 const statusIcons = ['Group', 'InProgress'] as const;
@@ -106,6 +97,16 @@ export const defaultQueueTable: TableDefinitions = {
 };
 
 export const configSchema = {
+  hiddenServicePrograms: {
+    _type: Type.Array,
+    _elements: { _type: Type.UUID },
+    _default: [],
+    _description:
+      "UUIDs of programs to exclude from this app's 'Service type' filter. Should be kept in sync with " +
+      "esm-patient-programs-app's config key of the same name, which hides the same programs from the Care " +
+      'Services web pickers -- duplicated here (rather than read cross-module) because esm-patient-programs-app ' +
+      "is not loaded on this app's routes, so its config would never become available.",
+  },
   priorityConfigs: {
     _type: Type.Array,
     _default: defaultPriorityConfig,
@@ -558,6 +559,7 @@ function columnHasType(columnDef: ColumnDefinition, type: ColumnType): boolean {
 }
 
 export interface ConfigObject {
+  hiddenServicePrograms: Array<string>;
   priorityConfigs: Array<PriorityConfig>;
   waitTimeThresholds: Array<WaitTimeThresholdConfig>;
   appointmentStatuses: Array<string>;
