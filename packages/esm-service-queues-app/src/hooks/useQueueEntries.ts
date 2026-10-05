@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { openmrsFetch, restBaseUrl, useOpenmrsFetchAll } from '@openmrs/esm-framework';
 import { type QueueEntry, type QueueEntrySearchCriteria } from '../types';
@@ -24,6 +24,21 @@ const maxResultsPerPage = 100;
 
 export const repString =
   'custom:(uuid,display,queue:(uuid,display,name),status:(uuid,display),patient:(uuid,display,person:(uuid,display,age,birthdate,gender),identifiers:(uuid,identifier,identifierType:(uuid,display))),visit:(uuid,startDatetime,stopDatetime,location:(uuid,display),attributes:(uuid,value,attributeType:(uuid))),priority:(uuid,display),priorityComment,sortWeight,startedAt,endedAt,queueComingFrom:(uuid,display),previousQueueEntry:(uuid,startedAt,status:(uuid,display)))';
+
+/**
+ * Window event that tells every mounted queue-entry list to refetch. Code that runs outside React
+ * (the `visit-started` / `visit-ended` listeners in index.ts) can't revalidate SWR directly: SWR's
+ * global `mutate` targets SWR's default cache, while every OpenMRS component reads through the
+ * private cache that `openmrsComponentDecorator` provides - and filter-style `mutate(fn)` skips
+ * `useSWRInfinite` (`$inf$`) keys anyway, which is what `useOpenmrsFetchAll` uses. So those code
+ * paths dispatch this event instead, and `useQueueEntries` revalidates itself in response. The
+ * name matches what esm-patient-chart already dispatches after ending or deleting a visit.
+ */
+export const queueEntryUpdatedEvent = 'queue-entry-updated';
+
+export function notifyQueueEntriesChanged() {
+  window.dispatchEvent(new CustomEvent(queueEntryUpdatedEvent));
+}
 
 export function useMutateQueueEntries() {
   const { mutate, cache } = useSWRConfig();
@@ -85,6 +100,13 @@ export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: 
     // moved patient's stale row until the browser was reloaded.
     swrInfiniteConfig: { revalidateAll: true },
   });
+
+  const { mutate } = rest;
+  useEffect(() => {
+    const revalidate = () => mutate();
+    window.addEventListener(queueEntryUpdatedEvent, revalidate);
+    return () => window.removeEventListener(queueEntryUpdatedEvent, revalidate);
+  }, [mutate]);
 
   return {
     queueEntries: data ?? [],

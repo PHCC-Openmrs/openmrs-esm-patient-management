@@ -1,6 +1,6 @@
 import { getConfig, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
-import { mutate } from 'swr';
 import { type ConfigObject } from './config-schema';
+import { notifyQueueEntriesChanged } from './hooks/useQueueEntries';
 import { postQueueEntry } from './create-queue-entry/queue-fields/queue-fields.resource';
 import { DUPLICATE_QUEUE_ENTRY_ERROR_CODE } from './constants';
 import { type Queue, type QueueEntry } from './types';
@@ -31,11 +31,9 @@ export async function autoEnqueuePatientForVisit(patientUuid: string, visitUuid:
     if (existingEntries?.results?.length > 0) {
       // Already queued, e.g. by the visible "add to queue" fields on the start-visit form. That
       // form's own submission already mutates the queue-entry cache on success, but this event
-      // listener can run before or after that submission settles, so mutate defensively here too
+      // listener can run before or after that submission settles, so refresh defensively here too
       // rather than relying on ordering between two independent code paths.
-      await mutate(
-        (key) => typeof key === 'string' && (key.includes('/queue-entry') || key.includes('/visit-queue-entry')),
-      );
+      notifyQueueEntriesChanged();
       return;
     }
 
@@ -63,9 +61,7 @@ export async function autoEnqueuePatientForVisit(patientUuid: string, visitUuid:
       visitQueueNumberAttributeUuid,
     );
 
-    await mutate(
-      (key) => typeof key === 'string' && (key.includes('/queue-entry') || key.includes('/visit-queue-entry')),
-    );
+    notifyQueueEntriesChanged();
   } catch (error) {
     if (error?.responseBody?.error?.message?.includes(DUPLICATE_QUEUE_ENTRY_ERROR_CODE)) {
       return;
