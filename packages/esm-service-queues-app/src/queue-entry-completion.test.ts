@@ -1,13 +1,12 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { getConfig, openmrsFetch } from '@openmrs/esm-framework';
-import { mutate } from 'swr';
-import { getDefaultsFromConfigSchema } from '@openmrs/esm-framework';
+import { getConfig, openmrsFetch , getDefaultsFromConfigSchema } from '@openmrs/esm-framework';
+import { notifyQueueEntriesChanged } from './hooks/useQueueEntries';
 import { configSchema } from './config-schema';
 import { updateQueueEntry } from './modals/queue-entry-actions.resource';
 import { completeActiveQueueEntryForPatient } from './queue-entry-completion';
 
-vi.mock('swr', () => ({
-  mutate: vi.fn(),
+vi.mock('./hooks/useQueueEntries', () => ({
+  notifyQueueEntriesChanged: vi.fn(),
 }));
 
 vi.mock('./modals/queue-entry-actions.resource', () => ({
@@ -16,7 +15,7 @@ vi.mock('./modals/queue-entry-actions.resource', () => ({
 
 const mockOpenmrsFetch = vi.mocked(openmrsFetch);
 const mockGetConfig = vi.mocked(getConfig);
-const mockMutate = vi.mocked(mutate);
+const mockNotifyQueueEntriesChanged = vi.mocked(notifyQueueEntriesChanged);
 const mockUpdateQueueEntry = vi.mocked(updateQueueEntry);
 
 const { defaultTransitionStatus, defaultFinishedServiceStatus } = getDefaultsFromConfigSchema(configSchema).concepts;
@@ -29,7 +28,9 @@ describe('completeActiveQueueEntryForPatient', () => {
   it('marks the last queue entry Finished Service and refreshes the cache when it was In Service', async () => {
     mockOpenmrsFetch.mockResolvedValue({
       data: {
-        results: [{ uuid: 'entry-1', startedAt: '2026-01-01T09:00:00.000Z', status: { uuid: defaultTransitionStatus } }],
+        results: [
+          { uuid: 'entry-1', startedAt: '2026-01-01T09:00:00.000Z', status: { uuid: defaultTransitionStatus } },
+        ],
       },
     } as any);
 
@@ -38,7 +39,7 @@ describe('completeActiveQueueEntryForPatient', () => {
     expect(mockUpdateQueueEntry).toHaveBeenCalledWith('entry-1', {
       status: { uuid: defaultFinishedServiceStatus },
     });
-    expect(mockMutate).toHaveBeenCalled();
+    expect(mockNotifyQueueEntriesChanged).toHaveBeenCalled();
   });
 
   it('still refreshes the cache when the last entry was not In Service (e.g. never actually served)', async () => {
@@ -53,7 +54,7 @@ describe('completeActiveQueueEntryForPatient', () => {
     await completeActiveQueueEntryForPatient('visit-uuid');
 
     expect(mockUpdateQueueEntry).not.toHaveBeenCalled();
-    expect(mockMutate).toHaveBeenCalled();
+    expect(mockNotifyQueueEntriesChanged).toHaveBeenCalled();
   });
 
   it('picks the most recently started entry when a visit has more than one', async () => {
@@ -75,7 +76,7 @@ describe('completeActiveQueueEntryForPatient', () => {
     await completeActiveQueueEntryForPatient(undefined);
 
     expect(mockOpenmrsFetch).not.toHaveBeenCalled();
-    expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockNotifyQueueEntriesChanged).not.toHaveBeenCalled();
   });
 
   it('does nothing when the visit has no queue entries', async () => {
@@ -84,6 +85,6 @@ describe('completeActiveQueueEntryForPatient', () => {
     await completeActiveQueueEntryForPatient('visit-uuid');
 
     expect(mockUpdateQueueEntry).not.toHaveBeenCalled();
-    expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockNotifyQueueEntriesChanged).not.toHaveBeenCalled();
   });
 });

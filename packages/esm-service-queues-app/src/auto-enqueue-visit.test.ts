@@ -1,14 +1,13 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { getConfig, openmrsFetch } from '@openmrs/esm-framework';
-import { mutate } from 'swr';
-import { getDefaultsFromConfigSchema } from '@openmrs/esm-framework';
+import { getConfig, openmrsFetch , getDefaultsFromConfigSchema } from '@openmrs/esm-framework';
+import { notifyQueueEntriesChanged } from './hooks/useQueueEntries';
 import { configSchema } from './config-schema';
 import { postQueueEntry } from './create-queue-entry/queue-fields/queue-fields.resource';
 import { DUPLICATE_QUEUE_ENTRY_ERROR_CODE } from './constants';
 import { autoEnqueuePatientForVisit } from './auto-enqueue-visit';
 
-vi.mock('swr', () => ({
-  mutate: vi.fn(),
+vi.mock('./hooks/useQueueEntries', () => ({
+  notifyQueueEntriesChanged: vi.fn(),
 }));
 
 vi.mock('./create-queue-entry/queue-fields/queue-fields.resource', () => ({
@@ -17,7 +16,7 @@ vi.mock('./create-queue-entry/queue-fields/queue-fields.resource', () => ({
 
 const mockOpenmrsFetch = vi.mocked(openmrsFetch);
 const mockGetConfig = vi.mocked(getConfig);
-const mockMutate = vi.mocked(mutate);
+const mockNotifyQueueEntriesChanged = vi.mocked(notifyQueueEntriesChanged);
 const mockPostQueueEntry = vi.mocked(postQueueEntry);
 
 const defaultConfig = getDefaultsFromConfigSchema(configSchema);
@@ -36,19 +35,19 @@ describe('autoEnqueuePatientForVisit', () => {
     await autoEnqueuePatientForVisit('patient-uuid', 'visit-uuid');
 
     expect(mockPostQueueEntry).toHaveBeenCalled();
-    expect(mockMutate).toHaveBeenCalled();
+    expect(mockNotifyQueueEntriesChanged).toHaveBeenCalled();
   });
 
   it('still refreshes the cache (without creating a duplicate entry) when the patient is already queued', async () => {
     // e.g. the visible "add to queue" fields on the start-visit form already created it - that
-    // form's own submission also mutates on success, but this listener may run before or after
+    // form's own submission also refreshes on success, but this listener may run before or after
     // it settles, so this path must not skip refreshing the cache.
     mockOpenmrsFetch.mockResolvedValueOnce({ data: { results: [{ uuid: 'existing-entry' }] } } as any);
 
     await autoEnqueuePatientForVisit('patient-uuid', 'visit-uuid');
 
     expect(mockPostQueueEntry).not.toHaveBeenCalled();
-    expect(mockMutate).toHaveBeenCalled();
+    expect(mockNotifyQueueEntriesChanged).toHaveBeenCalled();
   });
 
   it('does nothing when no default initial service queue is configured', async () => {
@@ -58,7 +57,7 @@ describe('autoEnqueuePatientForVisit', () => {
 
     expect(mockOpenmrsFetch).not.toHaveBeenCalled();
     expect(mockPostQueueEntry).not.toHaveBeenCalled();
-    expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockNotifyQueueEntriesChanged).not.toHaveBeenCalled();
   });
 
   it('silently ignores a duplicate-queue-entry error from a concurrent creation, without refreshing again', async () => {
@@ -74,6 +73,6 @@ describe('autoEnqueuePatientForVisit', () => {
     await autoEnqueuePatientForVisit('patient-uuid', undefined);
 
     expect(mockOpenmrsFetch).not.toHaveBeenCalled();
-    expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockNotifyQueueEntriesChanged).not.toHaveBeenCalled();
   });
 });

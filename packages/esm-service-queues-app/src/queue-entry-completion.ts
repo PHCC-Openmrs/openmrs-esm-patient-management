@@ -1,6 +1,6 @@
 import { getConfig, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
-import { mutate } from 'swr';
 import { type ConfigObject } from './config-schema';
+import { notifyQueueEntriesChanged } from './hooks/useQueueEntries';
 import { updateQueueEntry } from './modals/queue-entry-actions.resource';
 import { type QueueEntry } from './types';
 
@@ -50,9 +50,7 @@ export async function completeActiveQueueEntryForPatient(visitUuid: string): Pro
     // Stopping the visit always closes its queue entries server-side (VisitWithQueueEntriesSaveHandler
     // sets endedAt), even on the branch above where this handler itself has nothing further to update -
     // so the queue-entry cache is stale regardless of which branch ran, not just when we changed status.
-    await mutate(
-      (key) => typeof key === 'string' && (key.includes('/queue-entry') || key.includes('/visit-queue-entry')),
-    );
+    notifyQueueEntriesChanged();
   } catch (error) {
     console.error('Failed to mark queue entry as finished after visit ended', error);
   }

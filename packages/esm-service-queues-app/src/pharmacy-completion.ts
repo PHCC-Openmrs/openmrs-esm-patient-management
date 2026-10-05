@@ -1,6 +1,6 @@
 import { getConfig, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
-import { mutate } from 'swr';
 import { type ConfigObject } from './config-schema';
+import { notifyQueueEntriesChanged } from './hooks/useQueueEntries';
 import { updateQueueEntry } from './modals/queue-entry-actions.resource';
 import { type QueueEntry } from './types';
 
@@ -38,9 +38,7 @@ export async function completePharmacyQueueEntryForPatient(patientUuid: string):
       endedAt: new Date().toISOString(),
     });
 
-    await mutate(
-      (key) => typeof key === 'string' && (key.includes('/queue-entry') || key.includes('/visit-queue-entry')),
-    );
+    notifyQueueEntriesChanged();
   } catch (error) {
     console.error('Failed to end pharmacy queue entry after dispensing completed', error);
   }
