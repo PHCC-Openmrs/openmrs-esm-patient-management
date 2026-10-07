@@ -6,7 +6,7 @@ import { renderWithSwr } from 'tools';
 import { type QueueEntry } from '../types';
 import { useMutateQueueEntries, useQueueEntries } from './useQueueEntries';
 
-// `useOpenmrsInfinite` fetches with the `openmrsFetch` it imports from `@openmrs/esm-api`
+// Some framework hooks fetch with the `openmrsFetch` they import from `@openmrs/esm-api`
 // directly, which the `@openmrs/esm-framework` alias doesn't cover - point it at the same
 // mock instance this test drives.
 vi.mock('@openmrs/esm-api', async (importOriginal) => ({
@@ -16,11 +16,11 @@ vi.mock('@openmrs/esm-api', async (importOriginal) => ({
 
 const mockOpenmrsFetch = vi.mocked(openmrsFetch);
 
-// The page size this test's stub server serves at. The real query asks for a larger `limit`,
-// but the behaviour under test - revalidating pages past the first - only needs more than one
-// page to exist, whatever the size.
-const pageSize = 50;
-const nextPageUri = 'http://localhost/openmrs/ws/rest/v1/queue-entry?startIndex=50';
+// The page size this test's stub server serves at - the `limit` the query asks for, which a real
+// server honours. The behaviour under test - revalidating pages past the first - only needs more
+// than one page to exist.
+const pageSize = 100;
+const nextPageUri = 'http://localhost/openmrs/ws/rest/v1/queue-entry?startIndex=100';
 
 function queueEntry(uuid: string, queueDisplay: string) {
   return { uuid, display: uuid, queue: { uuid: 'queue-uuid', display: queueDisplay } } as unknown as QueueEntry;
@@ -44,7 +44,7 @@ function pageResponse(results: QueueEntry[], hasNext: boolean) {
 function serveTwoPages(lastPageQueue: string) {
   mockOpenmrsFetch.mockImplementation((url: string) =>
     Promise.resolve(
-      url.includes('startIndex=50')
+      url.includes('startIndex=100')
         ? pageResponse([queueEntry('moved-entry', lastPageQueue)], false)
         : pageResponse(firstPage, true),
     ),

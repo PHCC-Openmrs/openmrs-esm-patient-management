@@ -14,8 +14,10 @@ const moduleName = '@openmrs/esm-service-queues-app';
 // that made the change does, and that only covers this same browser tab. A short poll interval
 // is what actually keeps a second tab/terminal's view converging with reality on its own, without
 // requiring a manual refresh. Was 60s; queue state is time-sensitive enough that a full minute of
-// staleness reads as broken, not just delayed.
-const swrRefreshIntervalInMs = 5000;
+// staleness reads as broken, not just delayed. It was then 5s, but every poll re-downloads the
+// whole day's queue (many hundreds of entries on a busy site), so each poll ran into the next and
+// the page never stopped fetching; 15s keeps other terminals' changes prompt without that.
+const swrRefreshIntervalInMs = 15000;
 
 const options = {
   featureName: 'serviceQueues',

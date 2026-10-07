@@ -1,24 +1,17 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
-import { openmrsFetch, restBaseUrl, useOpenmrsFetchAll } from '@openmrs/esm-framework';
+import { openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
 import { type QueueEntry, type QueueEntrySearchCriteria } from '../types';
 
 const queueEntryBaseUrl = `${restBaseUrl}/queue-entry`;
 
 /**
  * Page size for queue-entry fetches. Left unset, the endpoint pages at the server's
- * `webservices.rest.maxResultsDefault` (50), and `useOpenmrsFetchAll` walks the pages
- * *sequentially* - each page's request URL is the previous page's `next` link - while rendering
- * nothing until the last one lands, so every extra page is a full round trip of dead time under
- * the loading skeleton. Raising the page size cuts those round trips; combined with a query
- * bounded to today (see `useCurrentQueueEntries`), a single request covers the day outright for
- * any realistic single-site caseload.
- *
- * Kept deliberately modest because asking for more than the server's
- * `webservices.rest.maxResultsAbsolute` is a hard error ("Administrator has set absolute limit
- * at N"), not a silent clamp - so this has to stay under the *lowest* value any deployment
- * might configure, not just the 1000 OpenMRS ships with. Anything beyond one page still pages
- * correctly, just over fewer, larger requests than before.
+ * `webservices.rest.maxResultsDefault` (50). Kept deliberately modest because asking for more
+ * than the server's `webservices.rest.maxResultsAbsolute` is a hard error ("Administrator has
+ * set absolute limit at N"), not a silent clamp - so this has to stay under the *lowest* value
+ * any deployment might configure, not just the 1000 OpenMRS ships with. Days that overflow one
+ * page are covered by fetching every page in parallel (see `fetchAllQueueEntryPages`).
  */
 const maxResultsPerPage = 100;
 
@@ -40,9 +33,69 @@ export function notifyQueueEntriesChanged() {
   window.dispatchEvent(new CustomEvent(queueEntryUpdatedEvent));
 }
 
+/**
+ * How long a finished queue-entry fetch may be handed to another caller asking for the same URL.
+ * Kept well under the views' poll interval, so a poll always gets a fresh fetch of its own.
+ */
+const sharedFetchFreshnessMs = 2000;
+
+/**
+ * Queue-entry fetches shared across every component on the page, keyed by URL. The queue table
+ * and each metrics card are separate extensions, each with its own private SWR cache, so SWR's
+ * own de-duplication never sees them asking for the same URL - every page of every poll used to
+ * go out once per extension. Sharing the in-flight (or just-finished) fetch here collapses those
+ * into one.
+ */
+const sharedFetches = new Map<
+  string,
+  { promise: Promise<Array<QueueEntry>>; generation: number; settledAt?: number }
+>();
+let sharedFetchGeneration = 0;
+
+/** Stops handing out fetches started before a queue-entry change, so the next revalidation refetches. */
+function invalidateSharedQueueEntryFetches() {
+  sharedFetchGeneration++;
+  sharedFetches.clear();
+}
+
+// Registered once, at module load, so it runs before any per-component listener revalidates -
+// several components refetching in response then still share a single post-change fetch.
+if (typeof window !== 'undefined') {
+  window.addEventListener(queueEntryUpdatedEvent, invalidateSharedQueueEntryFetches);
+}
+
+function fetchQueueEntriesShared(url: string): Promise<Array<QueueEntry>> {
+  const existing = sharedFetches.get(url);
+  if (
+    existing &&
+    existing.generation === sharedFetchGeneration &&
+    (existing.settledAt == null || Date.now() - existing.settledAt < sharedFetchFreshnessMs)
+  ) {
+    return existing.promise;
+  }
+
+  const entry: { promise: Promise<Array<QueueEntry>>; generation: number; settledAt?: number } = {
+    promise: fetchAllQueueEntryPages(url),
+    generation: sharedFetchGeneration,
+  };
+  entry.promise.then(
+    () => {
+      entry.settledAt = Date.now();
+    },
+    () => {
+      if (sharedFetches.get(url) === entry) {
+        sharedFetches.delete(url);
+      }
+    },
+  );
+  sharedFetches.set(url, entry);
+  return entry.promise;
+}
+
 export function useMutateQueueEntries() {
   const { mutate, cache } = useSWRConfig();
   const mutateQueueEntries = useCallback(() => {
+    invalidateSharedQueueEntryFetches();
     const promises: Promise<unknown>[] = [];
     for (const key of cache.keys()) {
       if (key.includes(`${restBaseUrl}/queue-entry`) || key.includes(`${restBaseUrl}/visit-queue-entry`)) {
@@ -78,6 +131,72 @@ function appendSearchParam(searchParam: URLSearchParams, key: string, value: unk
   }
 }
 
+interface QueueEntryPage {
+  results: Array<QueueEntry>;
+  totalCount?: number;
+  links?: Array<{ rel: string; uri: string }>;
+}
+
+/**
+ * The last `totalCount` each query reported, keyed by URL, so a refetch can request every page at
+ * once without first waiting to learn how many there are.
+ */
+const lastTotalCounts = new Map<string, number>();
+
+/** Asks for the query's `totalCount` alone - a fraction of the cost of a page of full entries. */
+async function fetchTotalCount(url: string): Promise<number> {
+  const [path, query] = url.split('?');
+  const params = new URLSearchParams(query);
+  params.set('v', 'custom:(uuid)');
+  params.set('limit', '1');
+  params.set('totalCount', 'true');
+  const { data } = await openmrsFetch<QueueEntryPage>(`${path}?${params.toString()}`);
+  return data?.totalCount ?? 0;
+}
+
+/**
+ * Fetches every page of a queue-entry query at once, by `startIndex`, rather than following each
+ * page's `next` link in turn (as `useOpenmrsFetchAll` does). A busy site's day runs to many hundreds
+ * of entries - each patient leaves one behind per room they pass through - and walking those pages
+ * one round trip at a time kept the table on its loading skeleton for well over ten seconds.
+ *
+ * How many pages to ask for comes from the count this query reported last time; on its first fetch
+ * a count-only request supplies it. If the query has since grown past that, the missing pages are
+ * fetched once the first batch reports the new `totalCount`.
+ *
+ * Entries created or ended between page requests can shift the page boundaries, so results are
+ * de-duplicated by uuid; anything that slips between pages is picked up on the next revalidation.
+ */
+async function fetchAllQueueEntryPages(url: string): Promise<Array<QueueEntry>> {
+  const pageSize = Number(new URLSearchParams(url.split('?')[1]).get('limit')) || maxResultsPerPage;
+  const fetchPages = (fromIndex: number, toIndex: number) => {
+    const startIndexes: Array<number> = [];
+    for (let startIndex = fromIndex; startIndex === fromIndex || startIndex < toIndex; startIndex += pageSize) {
+      startIndexes.push(startIndex);
+    }
+    return Promise.all(
+      startIndexes.map((startIndex) =>
+        openmrsFetch<QueueEntryPage>(startIndex ? `${url}&startIndex=${startIndex}` : url).then(({ data }) => data),
+      ),
+    );
+  };
+
+  const expectedTotal = lastTotalCounts.get(url) ?? (await fetchTotalCount(url));
+  const pages = await fetchPages(0, expectedTotal);
+  const fetchedUpTo = pages.length * pageSize;
+  const totalCount = Math.max(0, ...pages.map((page) => page?.totalCount ?? 0));
+  if (totalCount > fetchedUpTo) {
+    pages.push(...(await fetchPages(fetchedUpTo, totalCount)));
+  }
+  lastTotalCounts.set(url, totalCount);
+
+  const entriesByUuid = new Map<string, QueueEntry>();
+  for (const entry of pages.flatMap((page) => page?.results ?? [])) {
+    entriesByUuid.set(entry.uuid, entry);
+  }
+  return [...entriesByUuid.values()];
+}
+
 export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: string = repString) {
   const searchParam = new URLSearchParams();
   searchParam.append('v', rep);
@@ -90,18 +209,13 @@ export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: 
     }
   }
 
-  const { data, ...rest } = useOpenmrsFetchAll<QueueEntry>(`${queueEntryBaseUrl}?${searchParam.toString()}`, {
-    // This reads through useSWRInfinite, which by default only refetches the *first* page when
-    // it revalidates (`revalidateFirstPage`); every later page keeps being served from cache
-    // unless the whole hook is remounted. Entries come back oldest-first (the module orders by
-    // startedAt ascending), so on the rare day that does overflow a single page, the newest
-    // entries - the ones these views display - are the ones sitting on the later pages. Moving a
-    // patient would then refresh a page of older, untouched entries and go on rendering the
-    // moved patient's stale row until the browser was reloaded.
-    swrInfiniteConfig: { revalidateAll: true },
-  });
+  // A plain SWR key (rather than useSWRInfinite's `$inf$` one) also means a revalidation always
+  // refetches every page together, so a moved patient's row on a later page can't go stale.
+  const { data, error, isLoading, isValidating, mutate } = useSWR<Array<QueueEntry>, Error>(
+    `${queueEntryBaseUrl}?${searchParam.toString()}`,
+    fetchQueueEntriesShared,
+  );
 
-  const { mutate } = rest;
   useEffect(() => {
     const revalidate = () => mutate();
     window.addEventListener(queueEntryUpdatedEvent, revalidate);
@@ -110,7 +224,10 @@ export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: 
 
   return {
     queueEntries: data ?? [],
-    ...rest,
+    error,
+    isLoading,
+    isValidating,
+    mutate,
   };
 }
 
