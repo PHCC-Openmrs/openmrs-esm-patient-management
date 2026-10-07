@@ -77,6 +77,12 @@ export function useCurrentQueueEntries() {
       // yesterday's bound until something else invalidates it, which only ever widens the
       // window by a day - the client-side filter stays the authority on what is shown.
       startedOnOrAfter: dayjs().startOf('day').toISOString(),
+      // Have the server apply the same per-patient "keep only the latest" reduction the dedup below
+      // does, over this same population. Each patient leaves an ended entry behind in every room
+      // they pass through, so most of a busy day's entries are superseded ones the dedup would only
+      // discard - and serializing them was most of the load time. The client-side dedup stays as
+      // the authority (and covers servers whose queue module predates this param, which ignore it).
+      latestPerPatient: true,
     }),
     [selectedServiceUuid, concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus],
   );

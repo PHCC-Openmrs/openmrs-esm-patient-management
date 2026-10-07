@@ -49,4 +49,14 @@ describe('useCurrentQueueEntries', () => {
 
     expect(dayjs(searchCriteria.startedOnOrAfter).isAfter(dayjs().startOf('day'))).toBe(false);
   });
+
+  it("asks the server for only each patient's latest entry", () => {
+    // Most of a busy day's entries are superseded room steps the per-patient dedup discards;
+    // fetching (and serializing) them was most of the table's load time.
+    renderHook(() => useCurrentQueueEntries());
+
+    const [searchCriteria] = mockUseQueueEntries.mock.calls[0];
+
+    expect(searchCriteria.latestPerPatient).toBe(true);
+  });
 });

@@ -414,6 +414,8 @@ export interface QueueEntrySearchCriteria {
   patient?: string;
   /** ISO-8601 datetime; only entries that started at or after it are returned. */
   startedOnOrAfter?: string;
+  /** Only each patient's most recently started entry among those matching the other criteria. */
+  latestPerPatient?: boolean;
 }
 
 // TODO: The follow types match the types from backend.
