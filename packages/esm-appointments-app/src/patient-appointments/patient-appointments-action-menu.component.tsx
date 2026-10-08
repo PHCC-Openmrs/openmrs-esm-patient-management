@@ -53,7 +53,11 @@ export const PatientAppointmentsActionMenu = ({
 
   return (
     <Layer className={styles.layer}>
-      <OverflowMenu aria-label="Edit or delete appointment" size={isTablet ? 'lg' : 'sm'} flipped align="left">
+      <OverflowMenu
+        aria-label={t('editOrDeleteAppointment', 'Edit or delete appointment')}
+        size={isTablet ? 'lg' : 'sm'}
+        flipped
+        align="left">
         {canReschedule && (
           <OverflowMenuItem
             className={styles.menuItem}

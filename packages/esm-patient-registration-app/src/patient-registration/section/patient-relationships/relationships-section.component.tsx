@@ -181,7 +181,7 @@ export const RelationshipsSection = () => {
 
   if (!relationshipTypes) {
     return (
-      <section aria-label="Loading relationships section">
+      <section aria-label={t('loadingRelationshipsSection', 'Loading relationships section')}>
         <div role="progressbar" aria-label={t('loading', 'Loading')}>
           <SkeletonText />
         </div>
@@ -190,7 +190,7 @@ export const RelationshipsSection = () => {
   }
 
   return (
-    <section aria-label="Relationships section">
+    <section aria-label={t('relationshipsSectionLabel', 'Relationships section')}>
       <FieldArray name="relationships">
         {({
           push,
