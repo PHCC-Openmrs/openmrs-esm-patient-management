@@ -80,11 +80,12 @@ const AllPatientsTable: React.FC = () => {
         identifier: patient.identifier,
         nationalId: patient.nationalId,
         phoneNumber: patient.phoneNumber,
-        sex: patient.sex,
+        sex:
+          patient.sex === 'male' ? t('male', 'male') : patient.sex === 'female' ? t('female', 'female') : patient.sex,
         age: patient.birthDate !== '--' ? age(patient.birthDate) : '--',
         governorate: patient.governorate,
       })),
-    [patients],
+    [patients, t],
   );
 
   if (isLoading && !hasLoadedOnce) {
@@ -157,6 +158,18 @@ const AllPatientsTable: React.FC = () => {
             backwardText={t('previousPage', 'Previous page')}
             className={styles.paginationOverride}
             forwardText={t('nextPage', 'Next page')}
+            itemsPerPageText={t('itemsPerPage', 'Items per page:')}
+            itemRangeText={(min, max, total) =>
+              t('paginationItemRange', '{{min}}–{{max}} of {{total}} items', { min, max, total })
+            }
+            pageRangeText={(_current, total) =>
+              t('paginationPageRange', 'of {{total}} pages', {
+                count: total,
+                total,
+                defaultValue_one: 'of {{total}} page',
+                defaultValue_other: 'of {{total}} pages',
+              })
+            }
             onChange={({ page, pageSize }) => {
               setCurrentPage(page);
               setCurrentPageSize(pageSize);

@@ -331,7 +331,7 @@ function useStarredLists() {
         showSnackbar({
           subtitle: t('starringPatientListFailed', 'Marking patient lists starred / unstarred failed'),
           kind: 'error',
-          title: 'Failed to update patient lists',
+          title: t('failedToUpdatePatientLists', 'Failed to update patient lists'),
         });
       });
     },

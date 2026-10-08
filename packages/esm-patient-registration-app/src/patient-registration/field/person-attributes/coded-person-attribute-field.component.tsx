@@ -76,14 +76,24 @@ export function CodedPersonAttributeField({
 
   const answers = useMemo(() => {
     if (customConceptAnswers.length) {
-      return customConceptAnswers;
+      // Custom answer labels come from config (in English); translate them keyed by the English text.
+      return customConceptAnswers.map((answer) => ({
+        ...answer,
+        label: answer.label ? t(answer.label, answer.label) : answer.label,
+      }));
     }
     return isLoadingConceptAnswers || !conceptAnswers
       ? []
       : conceptAnswers
           .map((answer) => ({ ...answer, label: answer.display }))
           .sort((a, b) => a.label.localeCompare(b.label));
-  }, [customConceptAnswers, conceptAnswers, isLoadingConceptAnswers]);
+  }, [customConceptAnswers, conceptAnswers, isLoadingConceptAnswers, t]);
+
+  // The attribute type name comes from backend metadata; translate it keyed by the English name,
+  // falling back to the original text when no translation exists.
+  const translatedAttributeTypeName = personAttributeType?.display
+    ? t(personAttributeType.display, personAttributeType.display)
+    : personAttributeType?.display;
 
   if (error) {
     return null;
@@ -100,7 +110,7 @@ export function CodedPersonAttributeField({
                   <Select
                     id={id}
                     name={`person-attribute-${personAttributeType.uuid}`}
-                    labelText={label ?? personAttributeType?.display}
+                    labelText={label ?? translatedAttributeTypeName}
                     invalid={errors[fieldName] && touched[fieldName]}
                     required={required}
                     {...field}>

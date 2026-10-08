@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pagination } from '@carbon/react';
 import { useLayoutType } from '@openmrs/esm-framework';
 import { usePaginationInfo } from './use-pagination-info.component';
@@ -20,6 +21,7 @@ export const CustomPagination: React.FC<CustomPaginationProps> = ({
   currentItems,
 }) => {
   const { itemsDisplayed, pageSizes } = usePaginationInfo(pageSize, totalItems, pageNumber, currentItems);
+  const { t } = useTranslation();
   const isTablet = useLayoutType() === 'tablet';
 
   return (
@@ -29,6 +31,18 @@ export const CustomPagination: React.FC<CustomPaginationProps> = ({
           <div>{itemsDisplayed}</div>
           <Pagination
             className={styles.pagination}
+            itemsPerPageText={t('itemsPerPage', 'Items per page:')}
+            itemRangeText={(min, max, total) =>
+              t('paginationItemRange', '{{min}}–{{max}} of {{total}} items', { min, max, total })
+            }
+            pageRangeText={(_current, total) =>
+              t('paginationPageRange', 'of {{total}} pages', {
+                count: total,
+                total,
+                defaultValue_one: 'of {{total}} page',
+                defaultValue_other: 'of {{total}} pages',
+              })
+            }
             page={pageNumber}
             pageSize={pageSize}
             pageSizes={pageSizes}

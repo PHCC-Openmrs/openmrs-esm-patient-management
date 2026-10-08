@@ -305,7 +305,7 @@ const ListDetailsTable: React.FC<ListDetailsTableProps> = ({
         <Button
           kind="ghost"
           renderIcon={(props) => <ArrowLeftIcon size={24} {...props} />}
-          iconDescription="Return to lists page"
+          iconDescription={t('returnToListsPage', 'Return to lists page')}
           size="sm"
           onClick={() => {}}>
           <span>{t('backToListsPage', 'Back to lists page')}</span>
@@ -444,6 +444,18 @@ const ListDetailsTable: React.FC<ListDetailsTableProps> = ({
               className={styles.paginationOverride}
               forwardText={t('previousPage', 'Previous page')}
               isLastPage={pagination.lastPage}
+              itemsPerPageText={t('itemsPerPage', 'Items per page:')}
+              itemRangeText={(min, max, total) =>
+                t('paginationItemRange', '{{min}}–{{max}} of {{total}} items', { min, max, total })
+              }
+              pageRangeText={(_current, total) =>
+                t('paginationPageRange', 'of {{total}} pages', {
+                  count: total,
+                  total,
+                  defaultValue_one: 'of {{total}} page',
+                  defaultValue_other: 'of {{total}} pages',
+                })
+              }
               onChange={pagination.onChange}
               page={pagination.currentPage}
               pageSize={pagination.pageSize}

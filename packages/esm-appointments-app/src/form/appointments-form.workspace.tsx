@@ -827,7 +827,7 @@ const AppointmentsForm: React.FC<Workspace2DefinitionProps<AppointmentsFormProps
                   <Select
                     id="provider"
                     disabled
-                    invalidText="Required"
+                    invalidText={t('required', 'Required')}
                     labelText={t('selectProvider', 'Select a provider')}
                     onChange={onChange}
                     onBlur={onBlur}

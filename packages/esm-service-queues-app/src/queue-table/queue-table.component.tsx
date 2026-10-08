@@ -175,6 +175,18 @@ function QueueTable({
             <Pagination
               forwardText={t('nextPage', 'Next page')}
               backwardText={t('previousPage', 'Previous page')}
+              itemsPerPageText={t('itemsPerPage', 'Items per page:')}
+              itemRangeText={(min, max, total) =>
+                t('paginationItemRange', '{{min}}–{{max}} of {{total}} items', { min, max, total })
+              }
+              pageRangeText={(_current, total) =>
+                t('paginationPageRange', 'of {{total}} pages', {
+                  count: total,
+                  total,
+                  defaultValue_one: 'of {{total}} page',
+                  defaultValue_other: 'of {{total}} pages',
+                })
+              }
               page={currentPage}
               pageSize={currentPageSize}
               pageSizes={pageSizes}

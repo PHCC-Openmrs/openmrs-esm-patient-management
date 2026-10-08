@@ -40,6 +40,11 @@ export function TextPersonAttributeField({
   };
 
   const fieldName = `attributes.${personAttributeType.uuid}`;
+  // The attribute type name (e.g. "Phone Number") comes from backend metadata; translate it keyed by the
+  // English name, falling back to the original text when no translation exists.
+  const translatedAttributeTypeName = personAttributeType?.display
+    ? t(personAttributeType.display, personAttributeType.display)
+    : personAttributeType?.display;
 
   return (
     <div className={classNames(styles.customField, styles.halfWidthInDesktopView)}>
@@ -49,7 +54,7 @@ export function TextPersonAttributeField({
             <Input
               id={id}
               name={`person-attribute-${personAttributeType.uuid}`}
-              labelText={label ?? personAttributeType?.display}
+              labelText={label ?? translatedAttributeTypeName}
               invalid={errors[fieldName] && touched[fieldName]}
               {...field}
               required={required}

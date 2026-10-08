@@ -101,7 +101,7 @@ const PatientIdentifierOverlay: React.FC<PatientIdentifierOverlayProps> = ({ clo
             <Checkbox
               id={identifierType.uuid}
               value={identifierType.uuid}
-              labelText={identifierType.name}
+              labelText={identifierType.name ? t(identifierType.name, identifierType.name) : identifierType.name}
               onChange={(e, { checked }) => handleCheckingIdentifier(identifierType, checked)}
               checked={!!patientIdentifier}
               disabled={isDisabled || (isOffline && isDisabledOffline)}

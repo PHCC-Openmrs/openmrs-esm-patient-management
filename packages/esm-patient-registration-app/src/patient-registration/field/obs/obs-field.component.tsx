@@ -73,7 +73,7 @@ export function ObsField({ fieldDefinition }: ObsFieldProps) {
       );
     default:
       return (
-        <InlineNotification kind="error" title="Error">
+        <InlineNotification kind="error" title={t('error', 'Error')}>
           {t(
             'obsFieldUnknownDatatype',
             `Concept for obs field '{{fieldDefinitionId}}' has unknown datatype '{{datatypeName}}'`,
@@ -215,7 +215,7 @@ function CodedObsField({ concept, answerConceptSetUuid, label, required, customC
   const fieldName = `obs.${concept.uuid}`;
 
   const { data: conceptAnswers, isLoading: isLoadingConceptAnswers } = useConceptAnswers(
-    customConceptAnswers.length ? '' : answerConceptSetUuid ?? concept.uuid,
+    customConceptAnswers.length ? '' : (answerConceptSetUuid ?? concept.uuid),
   );
 
   const answers = useMemo(
