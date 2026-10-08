@@ -4,7 +4,6 @@ import { createDashboardLink } from './createDashboardLink';
 import { dashboardMeta } from './dashboard.meta';
 import { completeActiveQueueEntryForPatient } from './queue-entry-completion';
 import { autoEnqueuePatientForVisit } from './auto-enqueue-visit';
-import { completePharmacyQueueEntryForPatient } from './pharmacy-completion';
 
 export const importTranslation = require.context('../translations', false, /.json$/, 'lazy');
 
@@ -223,11 +222,4 @@ export function startupApp() {
   window.addEventListener('visit-started', (event: CustomEvent<{ patientUuid: string; visitUuid: string }>) => {
     autoEnqueuePatientForVisit(event.detail?.patientUuid, event.detail?.visitUuid);
   });
-
-  window.addEventListener(
-    'pharmacy-fulfillment-completed',
-    (event: CustomEvent<{ patientUuid: string; encounterUuid: string }>) => {
-      completePharmacyQueueEntryForPatient(event.detail?.patientUuid);
-    },
-  );
 }

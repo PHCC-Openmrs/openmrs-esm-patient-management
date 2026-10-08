@@ -340,14 +340,6 @@ export const configSchema = {
     _default: defaultDrugOrderTypeUuid,
     _description: 'The UUID of the "Drug Order" order type, used to filter medications in the previous-visit view.',
   },
-  pharmacyQueueName: {
-    _type: Type.String,
-    _default: 'Pharmacy',
-    _description:
-      'The name of the queue used to track patients waiting for pharmacy dispensing. When medication ' +
-      "dispensing is completed for a patient whose active queue entry is in this queue (see esm-dispensing-app's " +
-      '`pharmacy-fulfillment-completed` event), that queue entry is automatically ended.',
-  },
   queueTables: {
     columnDefinitions: {
       _type: Type.Array,
@@ -588,7 +580,6 @@ export interface ConfigObject {
   queueFlow: Array<QueueFlowRule>;
   occupiedStatusConceptUuid: string | null;
   drugOrderTypeUuid: string;
-  pharmacyQueueName: string;
   contactAttributeType: string;
   customPatientChartUrl: string;
   defaultIdentifierTypes: Array<string>;
