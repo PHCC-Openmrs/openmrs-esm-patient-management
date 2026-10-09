@@ -107,6 +107,15 @@ export function useCurrentQueueEntries() {
 
     return (
       todaysLatestEntryPerPatient
+        // A patient whose current entry was ended without reaching Finished Service has left the
+        // queue: e.g. the daily auto-close ends every open visit, and the queue module then ends
+        // those entries with their status still In Service. Finished Service entries are always
+        // ended and stay listed, since that card and status filter exist to report on them.
+        .filter(
+          (queueEntry) =>
+            queueEntry.status?.uuid === concepts.defaultFinishedServiceStatus ||
+            (!queueEntry.endedAt && !queueEntry.visit?.stopDatetime),
+        )
         .filter((queueEntry) => !selectedQueueUuid || queueEntry.queue?.uuid === selectedQueueUuid)
         .filter(
           (queueEntry) => !selectedQueueLocationUuid || queueEntry.visit?.location?.uuid === selectedQueueLocationUuid,
@@ -145,6 +154,7 @@ export function useCurrentQueueEntries() {
     );
   }, [
     queueEntries,
+    concepts.defaultFinishedServiceStatus,
     selectedQueueUuid,
     selectedQueueLocationUuid,
     selectedPriorityUuid,
