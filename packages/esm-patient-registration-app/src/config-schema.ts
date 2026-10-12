@@ -97,7 +97,7 @@ export const builtInSections: Array<SectionDefinition> = [
   {
     id: 'demographics',
     name: 'Basic Info',
-    fields: ['name', 'gender', 'patientStatus', 'dob', 'id'],
+    fields: ['id', 'name', 'gender', 'patientStatus', 'dob'],
   },
   { id: 'contact', name: 'Contact Details', fields: ['address', 'phone'] },
   { id: 'death', name: 'Death Info', fields: ['dateAndTimeOfDeath', 'causeOfDeath'] },

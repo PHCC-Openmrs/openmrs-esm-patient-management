@@ -63,6 +63,7 @@
   "genderUnspecified": "Gender unspecified",
   "givenNameLabelText": "First Name",
   "givenNameRequired": "Given name is required",
+  "identifierInUse": "This {{identifierName}} is already in use by an existing patient",
   "identifierValueRequired": "Identifier value is required",
   "IDInstructions": "Select the identifiers you'd like to add for this patient:",
   "IDP": "IDP",

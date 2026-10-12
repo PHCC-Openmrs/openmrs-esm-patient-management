@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useField, Field } from 'formik';
 import { Button } from '@carbon/react';
@@ -11,6 +11,7 @@ import { usePatientRegistrationContext } from '../../../patient-registration-con
 import { useResourcesContext } from '../../../../resources-context';
 import { shouldBlockPatientIdentifierInOfflineMode } from './utils';
 import { type PatientIdentifierValue } from '../../../patient-registration.types';
+import { findPatientUuidsByIdentifier } from '../../../patient-registration.resource';
 import styles from '../../input.scss';
 
 interface IdentifierInputProps {
@@ -46,11 +47,7 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
     return map;
   }, [defaultPatientIdentifierTypes]);
 
-  const validateInput = (value: string) => {
-    if (!value || value === '') {
-      return;
-    }
-
+  const validateFormat = (value: string) => {
     if (!identifierType?.format) {
       return;
     }
@@ -65,6 +62,56 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
     } catch (e) {
       console.error('Invalid regex pattern:', identifierType.format);
       return;
+    }
+  };
+
+  // Lookup results per value, so re-validation (every change/blur/submit) doesn't repeat requests.
+  const duplicateCheckCache = useRef(new Map<string, boolean>());
+  const duplicateCheckAbortController = useRef<AbortController>();
+
+  const isIdentifierInUse = async (value: string) => {
+    if (duplicateCheckCache.current.has(value)) {
+      return duplicateCheckCache.current.get(value);
+    }
+    // Cancel the lookup for a previous value the user has since edited.
+    duplicateCheckAbortController.current?.abort();
+    const abortController = new AbortController();
+    duplicateCheckAbortController.current = abortController;
+    try {
+      const uuids = await findPatientUuidsByIdentifier(value, identifierType.uuid, abortController);
+      const inUse = uuids.some((uuid) => uuid !== values.patientUuid);
+      duplicateCheckCache.current.set(value, inUse);
+      return inUse;
+    } catch (e) {
+      // Don't block the user if the lookup fails; the server still rejects duplicates on submit.
+      return false;
+    }
+  };
+
+  const validateInput = async (value: string) => {
+    if (!value || value === '') {
+      return;
+    }
+
+    const formatError = validateFormat(value);
+    if (formatError) {
+      return formatError;
+    }
+
+    // Only look up complete National IDs, and skip unchanged values and non-unique identifier types.
+    if (
+      !identifierType ||
+      identifierType.uniquenessBehavior === 'NON_UNIQUE' ||
+      value === initialValue ||
+      (identifierName === 'National ID' && value.length !== 9)
+    ) {
+      return;
+    }
+
+    if (await isIdentifierInUse(value)) {
+      return t('identifierInUse', 'This {{identifierName}} is already in use by an existing patient', {
+        identifierName: translatedIdentifierName,
+      });
     }
   };
 

@@ -64,6 +64,7 @@
   "givenNameLabelText": "الاسم الأول",
   "givenNameRequired": "الاسم الأول مطلوب",
   "Governorate": "المحافظة",
+  "identifierInUse": "{{identifierName}} مستخدم بالفعل من قبل مريض موجود",
   "identifierValueRequired": "قيمة المعرف مطلوبة",
   "idFieldLabelText": "المعرّفات",
   "IDInstructions": "اختر المعرّفات التي تريد إضافتها لهذا المريض:",
