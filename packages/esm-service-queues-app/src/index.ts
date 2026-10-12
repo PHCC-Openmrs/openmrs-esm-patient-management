@@ -77,8 +77,8 @@ export const metricsCardCompletedVisits = getAsyncLifecycle(
   liveQueueDataOptions,
 );
 
-export const metricsCardAverageVisitDuration = getAsyncLifecycle(
-  () => import('./metrics/metrics-cards/average-visit-duration.extension'),
+export const metricsCardUrgentPatients = getAsyncLifecycle(
+  () => import('./metrics/metrics-cards/urgent-patients.extension'),
   liveQueueDataOptions,
 );
 

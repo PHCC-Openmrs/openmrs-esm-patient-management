@@ -30,6 +30,27 @@ export function useCheckedInPatients() {
 }
 
 /**
+ * Count of queue entries with Urgent priority that are still waiting, i.e. not yet finished.
+ * Uses useCurrentQueueEntries so every filter the user picked is already applied.
+ */
+export function useUrgentPatients() {
+  const { concepts } = useConfig<ConfigObject>();
+  const { currentQueueEntries, isLoading, isValidating } = useCurrentQueueEntries();
+
+  const urgentPatientsCount = useMemo(
+    () =>
+      currentQueueEntries.filter(
+        (entry) =>
+          entry.priority?.uuid === concepts.urgentPriorityConceptUuid &&
+          entry.status?.uuid !== concepts.defaultFinishedServiceStatus,
+      ).length,
+    [currentQueueEntries, concepts.urgentPriorityConceptUuid, concepts.defaultFinishedServiceStatus],
+  );
+
+  return { urgentPatientsCount, isLoading, isValidating };
+}
+
+/**
  * Count (and average duration) of visits whose queue entry moved to "Finished Service" today,
  * within whatever the user has filtered to - mirrors the queue table's own Finished Service view.
  */

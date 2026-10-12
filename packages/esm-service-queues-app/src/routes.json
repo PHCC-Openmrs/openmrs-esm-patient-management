@@ -79,8 +79,8 @@
       "order": 2
     },
     {
-      "name": "metrics-card-average-visit-duration",
-      "component": "metricsCardAverageVisitDuration",
+      "name": "metrics-card-urgent-patients",
+      "component": "metricsCardUrgentPatients",
       "slot": "service-queues-metrics-slot",
       "order": 3
     },
