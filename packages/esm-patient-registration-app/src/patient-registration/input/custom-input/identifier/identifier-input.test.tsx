@@ -3,7 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen, waitFor } from '@testing-library/react';
 import { Form, Formik } from 'formik';
-import { getDefaultsFromConfigSchema, useConfig } from '@openmrs/esm-framework';
+import { getDefaultsFromConfigSchema, openmrsFetch, useConfig } from '@openmrs/esm-framework';
 import { esmPatientRegistrationSchema, type RegistrationConfig } from '../../../../config-schema';
 import { renderWithContext } from 'tools';
 import { ResourcesContextProvider } from '../../../../resources-context';
@@ -105,6 +105,7 @@ const mockContextValues: PatientRegistrationContextProps = {
 };
 
 const mockUseConfig = vi.mocked(useConfig<RegistrationConfig>);
+const mockOpenmrsFetch = vi.mocked(openmrsFetch);
 
 /**
  * Helper to render IdentifierInput component with Formik.
@@ -132,6 +133,7 @@ describe('IdentifierInput component', () => {
     mockUseConfig.mockReturnValue({
       ...getDefaultsFromConfigSchema(esmPatientRegistrationSchema),
     });
+    mockOpenmrsFetch.mockResolvedValue({ data: { results: [] } } as any);
   });
 
   const fieldName = 'openMrsId';
@@ -394,6 +396,80 @@ describe('IdentifierInput component', () => {
       await waitFor(() => {
         expect(input).toHaveClass('cds--text-input--invalid');
       });
+    });
+  });
+
+  describe('Duplicate identifier check', () => {
+    const ssnTypeUuid = 'a71403f3-8584-4289-ab41-2b4e5570bd45';
+
+    const setupSsnInput = (patientUuid?: string) => {
+      const ssnIdentifier = {
+        ...openmrsID,
+        autoGeneration: false,
+        format: '^[A-Z]{1}-[0-9]{7}$',
+        identifierName: 'SSN',
+        identifierTypeUuid: ssnTypeUuid,
+        identifierValue: undefined,
+        initialValue: '',
+        required: true,
+      };
+      const testContextValues = {
+        ...mockContextValues,
+        setFieldTouched: vi.fn(),
+        setFieldValue: vi.fn(),
+        values: { ...mockInitialFormValues, patientUuid, identifiers: { [fieldName]: ssnIdentifier } },
+      };
+      renderWithContext(
+        <Formik initialValues={{ identifiers: { [fieldName]: { identifierValue: '' } } }} onSubmit={vi.fn()}>
+          <Form>
+            <PatientRegistrationContextProvider value={testContextValues}>
+              <IdentifierInput patientIdentifier={ssnIdentifier} fieldName={fieldName} />
+            </PatientRegistrationContextProvider>
+          </Form>
+        </Formik>,
+        ResourcesContextProvider,
+        mockResourcesContextValue,
+      );
+      return screen.getByRole('textbox', { name: /ssn/i });
+    };
+
+    const mockExistingPatient = (patientUuid: string) =>
+      mockOpenmrsFetch.mockResolvedValue({
+        data: {
+          results: [
+            {
+              uuid: patientUuid,
+              identifiers: [{ identifier: 'A-1234567', identifierType: { uuid: ssnTypeUuid } }],
+            },
+          ],
+        },
+      } as any);
+
+    it('shows an error when the identifier is already used by another patient', async () => {
+      const user = userEvent.setup();
+      mockExistingPatient('another-patient-uuid');
+      const input = setupSsnInput('this-patient-uuid');
+
+      await user.type(input, 'A-1234567');
+      await user.tab();
+
+      await waitFor(() => {
+        expect(screen.getByText(/already in use by an existing patient/i)).toBeInTheDocument();
+      });
+    });
+
+    it('does not show an error when the match is the patient being edited', async () => {
+      const user = userEvent.setup();
+      mockExistingPatient('this-patient-uuid');
+      const input = setupSsnInput('this-patient-uuid');
+
+      await user.type(input, 'A-1234567');
+      await user.tab();
+
+      await waitFor(() => {
+        expect(mockOpenmrsFetch).toHaveBeenCalled();
+      });
+      expect(screen.queryByText(/already in use by an existing patient/i)).not.toBeInTheDocument();
     });
   });
 });

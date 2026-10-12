@@ -152,6 +152,32 @@ export async function fetchPerson(query: string, abortController: AbortControlle
   return results;
 }
 
+/**
+ * Returns the uuids of existing patients that already hold the given identifier value for the given identifier type.
+ * The REST patient search only supports `q` (name or identifier, loose match), so results are filtered to exact matches on value and type.
+ */
+export async function findPatientUuidsByIdentifier(
+  identifier: string,
+  identifierTypeUuid: string,
+  abortController?: AbortController,
+): Promise<Array<string>> {
+  const response = await openmrsFetch<{
+    results: Array<{
+      uuid: string;
+      identifiers?: Array<{ identifier: string; identifierType?: { uuid: string } }>;
+    }>;
+  }>(
+    `${restBaseUrl}/patient?q=${encodeURIComponent(identifier)}&limit=5&v=custom:(uuid,identifiers:(identifier,identifierType:(uuid)))`,
+    { signal: abortController?.signal },
+  );
+
+  return (response.data?.results ?? [])
+    .filter((patient) =>
+      patient.identifiers?.some((id) => id.identifier === identifier && id.identifierType?.uuid === identifierTypeUuid),
+    )
+    .map((patient) => patient.uuid);
+}
+
 export async function addPatientIdentifier(patientUuid: string, patientIdentifier: PatientIdentifier) {
   const abortController = new AbortController();
   return openmrsFetch(`${restBaseUrl}/patient/${patientUuid}/identifier/`, {
