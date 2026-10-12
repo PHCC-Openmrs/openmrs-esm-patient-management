@@ -17,7 +17,7 @@ import {
 import { type QueueEntry } from '../../types';
 import CheckedInPatientsExtension from './checked-in-patients.extension';
 import CompletedVisitsExtension from './completed-visits.extension';
-import AverageVisitDurationExtension from './average-visit-duration.extension';
+import UrgentPatientsExtension from './urgent-patients.extension';
 
 const mockUseConfig = vi.mocked(useConfig<ConfigObject>);
 const mockUseSession = vi.mocked(useSession);
@@ -402,87 +402,40 @@ describe('service queues metrics cards', () => {
     });
   });
 
-  describe('AverageVisitDurationExtension', () => {
-    it('averages visit duration (stopDatetime - startDatetime) across distinct patients finished today', async () => {
-      const now = new Date();
-      const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
-      const sixtyMinutesAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
-      const nowIso = now.toISOString();
+  describe('UrgentPatientsExtension', () => {
+    const urgent = { uuid: defaultConfig.concepts.urgentPriorityConceptUuid, display: 'Urgent' };
+    const notUrgent = { uuid: defaultConfig.concepts.defaultPriorityConceptUuid, display: 'Not Urgent' };
+
+    function mockEntries(entries: Array<QueueEntry>) {
       mockUseQueueEntries.mockReturnValue({
-        queueEntries: [
-          makeEntry({
-            uuid: 'e1',
-            patient: mockPatientAlice,
-            status: finishedServiceStatus,
-            endedAt: nowIso,
-            visit: { startDatetime: thirtyMinutesAgo, stopDatetime: nowIso } as any,
-          }),
-          makeEntry({
-            uuid: 'e2',
-            patient: mockPatientBrian,
-            status: finishedServiceStatus,
-            endedAt: nowIso,
-            visit: { startDatetime: sixtyMinutesAgo, stopDatetime: nowIso } as any,
-          }),
-        ],
+        queueEntries: entries,
         isLoading: false,
         isValidating: false,
         error: undefined,
-        totalCount: 2,
+        totalCount: entries.length,
         mutate: vi.fn(),
       });
+    }
 
-      renderWithSwr(<AverageVisitDurationExtension />);
+    it('counts only urgent patients that have not finished service', async () => {
+      mockEntries([
+        makeEntry({ uuid: 'a', patient: mockPatientAlice, priority: urgent }),
+        makeEntry({ uuid: 'b', patient: mockPatientBrian, priority: notUrgent }),
+        makeEntry({ uuid: 'c', patient: mockPatientBrian, priority: urgent, status: finishedServiceStatus }),
+      ]);
 
-      // (30 + 60) / 2 = 45 minutes
-      expect(await screen.findByText('45')).toBeInTheDocument();
+      renderWithSwr(<UrgentPatientsExtension />);
+
+      expect(await screen.findByText('Urgent Patients')).toBeInTheDocument();
+      expect(screen.getByText('1')).toBeInTheDocument();
     });
 
-    it('excludes an overdue visit closed today from the average, guarding against a multi-day duration skewing it', async () => {
-      const now = new Date();
-      const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
-      const nowIso = now.toISOString();
-      mockUseQueueEntries.mockReturnValue({
-        queueEntries: [
-          makeEntry({
-            uuid: 'overdue-closed-today',
-            patient: mockPatientAlice,
-            status: finishedServiceStatus,
-            visit: { startDatetime: '2020-01-01T00:00:00.000+0000', stopDatetime: nowIso } as any,
-          }),
-          makeEntry({
-            uuid: 'genuinely-today',
-            patient: mockPatientBrian,
-            status: finishedServiceStatus,
-            visit: { startDatetime: thirtyMinutesAgo, stopDatetime: nowIso } as any,
-          }),
-        ],
-        isLoading: false,
-        isValidating: false,
-        error: undefined,
-        totalCount: 2,
-        mutate: vi.fn(),
-      });
+    it('shows zero when nobody urgent is waiting', async () => {
+      mockEntries([makeEntry({ uuid: 'b', patient: mockPatientBrian, priority: notUrgent })]);
 
-      renderWithSwr(<AverageVisitDurationExtension />);
+      renderWithSwr(<UrgentPatientsExtension />);
 
-      // Only the genuinely-today 30-minute visit should count - not the multi-year overdue one.
-      expect(await screen.findByText('30')).toBeInTheDocument();
-    });
-
-    it('shows a placeholder instead of a misleading average when there are no completions today', async () => {
-      mockUseQueueEntries.mockReturnValue({
-        queueEntries: [],
-        isLoading: false,
-        isValidating: false,
-        error: undefined,
-        totalCount: 0,
-        mutate: vi.fn(),
-      });
-
-      renderWithSwr(<AverageVisitDurationExtension />);
-
-      expect(await screen.findByText('--')).toBeInTheDocument();
+      expect(await screen.findByText('0')).toBeInTheDocument();
     });
   });
 

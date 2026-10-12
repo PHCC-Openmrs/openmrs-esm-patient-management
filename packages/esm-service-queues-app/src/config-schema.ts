@@ -205,6 +205,11 @@ export const configSchema = {
       _default: defaultEmergencyPriorityUuid,
       _description: 'The UUID of the priority with the highest sort weight for the queues eg Emergency.',
     },
+    urgentPriorityConceptUuid: {
+      _type: Type.ConceptUuid,
+      _default: defaultUrgentPriorityUuid,
+      _description: 'The UUID of the Urgent priority, used by the "Urgent patients" metrics card.',
+    },
     generalPatientNoteConceptUuid: {
       _type: Type.ConceptUuid,
       _default: '162169AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
@@ -564,6 +569,7 @@ export interface ConfigObject {
     defaultFinishedServiceStatus: string;
     diastolicBloodPressureUuid: string;
     emergencyPriorityConceptUuid: string;
+    urgentPriorityConceptUuid: string;
     generalPatientNoteConceptUuid: string;
     heightUuid: string;
     historicalObsConceptUuid: Array<string>;
