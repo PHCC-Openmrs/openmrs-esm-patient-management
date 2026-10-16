@@ -1,19 +1,19 @@
 import React from 'react';
-import { useActivePatientPrograms } from '../../hooks/usePatientPrograms';
+import { useVisitServicePrograms } from '../../hooks/usePatientPrograms';
 import { type QueueTableColumnFunction, type QueueTableCellComponentProps } from '../../types';
 
 export const QueueTableProgramsCell = ({ queueEntry }: QueueTableCellComponentProps) => {
-  const { activePrograms, isLoading } = useActivePatientPrograms(queueEntry.patient?.uuid);
+  const { programs, isLoading } = useVisitServicePrograms(queueEntry.patient?.uuid, queueEntry.visit);
 
   if (isLoading) {
     return <>--</>;
   }
 
-  if (!activePrograms.length) {
+  if (!programs.length) {
     return <>--</>;
   }
 
-  return <>{activePrograms.map((enrollment) => enrollment.program?.name).join(', ')}</>;
+  return <>{programs.map((program) => program.name).join(', ')}</>;
 };
 
 export const queueTableProgramsColumn: QueueTableColumnFunction = (key, header) => ({

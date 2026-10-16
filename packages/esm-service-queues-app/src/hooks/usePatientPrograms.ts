@@ -2,7 +2,9 @@ import { getLocale, openmrsFetch, restBaseUrl, useConfig } from '@openmrs/esm-fr
 import { useMemo } from 'react';
 import useSWR from 'swr';
 import useSWRImmutable from 'swr/immutable';
+import { type Visit } from '@openmrs/esm-framework';
 import { type PatientProgram } from '../types';
+import { getEnrollmentsSinceVisitStart, getVisitServiceProgramUuids } from '../queue-table/visit-services';
 
 // Shared with useActivePatientProgramsForPatients below so both hit the same SWR cache key per
 // patient, instead of double-fetching when a row's cell and the table's program filter both want
@@ -89,4 +91,32 @@ export function useActiveProgramsForPatients(patientUuids: Array<string>) {
   }, [data, patientUuids]);
 
   return { programsByPatientUuid, isLoading };
+}
+
+/**
+ * The services (programs) of a queue entry's visit, each listed once: the ones chosen on the
+ * visit's "Service" attribute, or -- for a visit without one -- the active enrollments that began
+ * with the visit. A patient's other open enrollments, from earlier visits, are not the visit's.
+ */
+export function useVisitServicePrograms(patientUuid: string, visit?: Visit | null) {
+  const { activePrograms, isLoading: isLoadingEnrollments } = useActivePatientPrograms(patientUuid);
+  const { data, isLoading: isLoadingPrograms } = useSWRImmutable<{
+    data: { results: Array<{ uuid: string; name: string }> };
+  }>(`${restBaseUrl}/program?v=custom:(uuid,name)`, openmrsFetch);
+
+  const programs = useMemo(() => {
+    const serviceProgramUuids = getVisitServiceProgramUuids(visit);
+    if (serviceProgramUuids) {
+      const namesByUuid = new Map((data?.data?.results ?? []).map((program) => [program.uuid, program.name]));
+      return serviceProgramUuids
+        .filter((uuid) => namesByUuid.has(uuid))
+        .map((uuid) => ({ uuid, name: namesByUuid.get(uuid) }));
+    }
+    return getEnrollmentsSinceVisitStart(activePrograms, visit).map((enrollment) => ({
+      uuid: enrollment.program.uuid,
+      name: enrollment.program.name as string,
+    }));
+  }, [visit, data?.data?.results, activePrograms]);
+
+  return { programs, isLoading: isLoadingEnrollments || isLoadingPrograms };
 }

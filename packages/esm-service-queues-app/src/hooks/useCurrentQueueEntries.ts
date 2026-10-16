@@ -6,6 +6,7 @@ import { dedupeQueueEntriesByPatient, isQueueEntryFromToday } from '../service-q
 import { ALL_QUEUE_STATUSES_UUID, useServiceQueuesStore } from '../store/store';
 import { useColumns } from '../queue-table/cells/columns.resource';
 import { useActiveProgramsForPatients } from './usePatientPrograms';
+import { visitHasServiceProgram } from '../queue-table/visit-services';
 import { useQueueEntries } from './useQueueEntries';
 
 /**
@@ -139,8 +140,11 @@ export function useCurrentQueueEntries() {
           if (!selectedProgramUuid) {
             return true;
           }
-          const patientPrograms = programsByPatientUuid[queueEntry.patient?.uuid] ?? [];
-          return patientPrograms.some((enrollment) => enrollment.program?.uuid === selectedProgramUuid);
+          return visitHasServiceProgram(
+            queueEntry.visit,
+            selectedProgramUuid,
+            programsByPatientUuid[queueEntry.patient?.uuid] ?? [],
+          );
         })
     );
   }, [
