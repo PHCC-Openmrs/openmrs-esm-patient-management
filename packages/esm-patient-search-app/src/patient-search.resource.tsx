@@ -233,6 +233,10 @@ export function useRestPatients(
     {
       keepPreviousData: true,
       initialSize: patientUuids ? Math.min(resultsToFetch, patientUuids.length) : 0,
+      // Each "page" is an independent single-patient fetch, so there is no reason to
+      // wait for one to finish before starting the next (SWR's default is sequential).
+      parallel: true,
+      revalidateFirstPage: false,
     },
   );
 
