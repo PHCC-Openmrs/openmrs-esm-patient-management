@@ -11,7 +11,7 @@ import { usePatientRegistrationContext } from '../../../patient-registration-con
 import { useResourcesContext } from '../../../../resources-context';
 import { shouldBlockPatientIdentifierInOfflineMode } from './utils';
 import { type PatientIdentifierValue } from '../../../patient-registration.types';
-import { findPatientUuidsByIdentifier } from '../../../patient-registration.resource';
+import { isNationalIdInUse } from '../../../patient-registration.resource';
 import styles from '../../input.scss';
 
 interface IdentifierInputProps {
@@ -78,8 +78,7 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
     const abortController = new AbortController();
     duplicateCheckAbortController.current = abortController;
     try {
-      const uuids = await findPatientUuidsByIdentifier(value, identifierType.uuid, abortController);
-      const inUse = uuids.some((uuid) => uuid !== values.patientUuid);
+      const inUse = await isNationalIdInUse(value, values.patientUuid, abortController);
       duplicateCheckCache.current.set(value, inUse);
       return inUse;
     } catch (e) {
@@ -98,13 +97,8 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
       return formatError;
     }
 
-    // Only look up complete National IDs, and skip unchanged values and non-unique identifier types.
-    if (
-      !identifierType ||
-      identifierType.uniquenessBehavior === 'NON_UNIQUE' ||
-      value === initialValue ||
-      (identifierName === 'National ID' && value.length !== 9)
-    ) {
+    // Only look up complete National IDs that changed; other identifier types are checked by the server on save.
+    if (identifierName !== 'National ID' || value.length !== 9 || value === initialValue) {
       return;
     }
 

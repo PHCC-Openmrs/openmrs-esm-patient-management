@@ -399,16 +399,24 @@ describe('IdentifierInput component', () => {
     });
   });
 
-  describe('Duplicate identifier check', () => {
-    const ssnTypeUuid = 'a71403f3-8584-4289-ab41-2b4e5570bd45';
+  describe('Duplicate National ID check', () => {
+    const nationalIdType = {
+      fieldName: 'nationalId',
+      format: '^[4789]\\d{8}$',
+      identifierSources: [],
+      isPrimary: false,
+      name: 'National ID',
+      required: true,
+      uniquenessBehavior: 'UNIQUE' as const,
+      uuid: 'b4d1a6f0-5c2e-4e8b-9f3a-7d6c2e1a0b98',
+    };
 
-    const setupSsnInput = (patientUuid?: string) => {
-      const ssnIdentifier = {
+    const setupNationalIdInput = (patientUuid?: string) => {
+      const nationalIdentifier = {
         ...openmrsID,
         autoGeneration: false,
-        format: '^[A-Z]{1}-[0-9]{7}$',
-        identifierName: 'SSN',
-        identifierTypeUuid: ssnTypeUuid,
+        identifierName: 'National ID',
+        identifierTypeUuid: nationalIdType.uuid,
         identifierValue: undefined,
         initialValue: '',
         required: true,
@@ -417,59 +425,68 @@ describe('IdentifierInput component', () => {
         ...mockContextValues,
         setFieldTouched: vi.fn(),
         setFieldValue: vi.fn(),
-        values: { ...mockInitialFormValues, patientUuid, identifiers: { [fieldName]: ssnIdentifier } },
+        values: { ...mockInitialFormValues, patientUuid, identifiers: { [fieldName]: nationalIdentifier } },
       };
       renderWithContext(
         <Formik initialValues={{ identifiers: { [fieldName]: { identifierValue: '' } } }} onSubmit={vi.fn()}>
           <Form>
             <PatientRegistrationContextProvider value={testContextValues}>
-              <IdentifierInput patientIdentifier={ssnIdentifier} fieldName={fieldName} />
+              <IdentifierInput patientIdentifier={nationalIdentifier} fieldName={fieldName} />
             </PatientRegistrationContextProvider>
           </Form>
         </Formik>,
         ResourcesContextProvider,
-        mockResourcesContextValue,
+        { ...mockResourcesContextValue, identifierTypes: [...mockIdentifierTypes, nationalIdType] },
       );
-      return screen.getByRole('textbox', { name: /ssn/i });
+      return screen.getByRole('textbox', { name: /national id/i });
     };
 
-    const mockExistingPatient = (patientUuid: string) =>
-      mockOpenmrsFetch.mockResolvedValue({
-        data: {
-          results: [
-            {
-              uuid: patientUuid,
-              identifiers: [{ identifier: 'A-1234567', identifierType: { uuid: ssnTypeUuid } }],
-            },
-          ],
-        },
-      } as any);
-
-    it('shows an error when the identifier is already used by another patient', async () => {
+    it('shows an error when the National ID is already in use', async () => {
       const user = userEvent.setup();
-      mockExistingPatient('another-patient-uuid');
-      const input = setupSsnInput('this-patient-uuid');
+      mockOpenmrsFetch.mockResolvedValue({ data: true } as any);
+      const input = setupNationalIdInput('this-patient-uuid');
 
-      await user.type(input, 'A-1234567');
+      await user.type(input, '412345678');
       await user.tab();
 
       await waitFor(() => {
         expect(screen.getByText(/already in use by an existing patient/i)).toBeInTheDocument();
       });
+      expect(mockOpenmrsFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/labtestreport/nationalid/inuse?nationalId=412345678&excludePatient=this-patient-uuid'),
+        expect.anything(),
+      );
     });
 
-    it('does not show an error when the match is the patient being edited', async () => {
+    it('does not show an error when the National ID is not in use', async () => {
       const user = userEvent.setup();
-      mockExistingPatient('this-patient-uuid');
-      const input = setupSsnInput('this-patient-uuid');
+      mockOpenmrsFetch.mockResolvedValue({ data: false } as any);
+      const input = setupNationalIdInput();
 
-      await user.type(input, 'A-1234567');
+      await user.type(input, '412345678');
       await user.tab();
 
       await waitFor(() => {
-        expect(mockOpenmrsFetch).toHaveBeenCalled();
+        expect(mockOpenmrsFetch).toHaveBeenCalledWith(
+          expect.stringContaining('/labtestreport/nationalid/inuse?nationalId=412345678'),
+          expect.anything(),
+        );
       });
       expect(screen.queryByText(/already in use by an existing patient/i)).not.toBeInTheDocument();
+    });
+
+    it('does not look up an incomplete National ID', async () => {
+      const user = userEvent.setup();
+      mockOpenmrsFetch.mockClear();
+      const input = setupNationalIdInput();
+
+      await user.type(input, '4123');
+      await user.tab();
+
+      expect(mockOpenmrsFetch).not.toHaveBeenCalledWith(
+        expect.stringContaining('/labtestreport/nationalid/inuse'),
+        expect.anything(),
+      );
     });
   });
 });

@@ -153,29 +153,22 @@ export async function fetchPerson(query: string, abortController: AbortControlle
 }
 
 /**
- * Returns the uuids of existing patients that already hold the given identifier value for the given identifier type.
- * The REST patient search only supports `q` (name or identifier, loose match), so results are filtered to exact matches on value and type.
+ * Whether another patient already holds the given National ID. Answered by the labtestreport module's exact,
+ * indexed lookup; `excludePatientUuid` is the patient being edited, whose own National ID doesn't count.
  */
-export async function findPatientUuidsByIdentifier(
-  identifier: string,
-  identifierTypeUuid: string,
+export async function isNationalIdInUse(
+  nationalId: string,
+  excludePatientUuid?: string,
   abortController?: AbortController,
-): Promise<Array<string>> {
-  const response = await openmrsFetch<{
-    results: Array<{
-      uuid: string;
-      identifiers?: Array<{ identifier: string; identifierType?: { uuid: string } }>;
-    }>;
-  }>(
-    `${restBaseUrl}/patient?q=${encodeURIComponent(identifier)}&limit=5&v=custom:(uuid,identifiers:(identifier,identifierType:(uuid)))`,
-    { signal: abortController?.signal },
-  );
-
-  return (response.data?.results ?? [])
-    .filter((patient) =>
-      patient.identifiers?.some((id) => id.identifier === identifier && id.identifierType?.uuid === identifierTypeUuid),
-    )
-    .map((patient) => patient.uuid);
+): Promise<boolean> {
+  const params = new URLSearchParams({ nationalId });
+  if (excludePatientUuid) {
+    params.set('excludePatient', excludePatientUuid);
+  }
+  const response = await openmrsFetch<boolean>(`${restBaseUrl}/labtestreport/nationalid/inuse?${params}`, {
+    signal: abortController?.signal,
+  });
+  return response.data === true;
 }
 
 export async function addPatientIdentifier(patientUuid: string, patientIdentifier: PatientIdentifier) {
