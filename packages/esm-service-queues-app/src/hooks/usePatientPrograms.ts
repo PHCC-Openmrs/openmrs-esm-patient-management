@@ -15,6 +15,18 @@ function activeProgramsUrl(patientUuid: string) {
   return `${restBaseUrl}/programenrollment?patient=${patientUuid}&v=${activeProgramsRepString}`;
 }
 
+// A patient's enrollments almost never change while they wait in a queue, so these lookups opt out
+// of the app's 15-second polling (set on the app's root). With polling on, the queue page re-sent one
+// /programenrollment request per visible row -- or per patient in the queue, with the "Service type"
+// filter set -- every 15 seconds, and those requests held up whatever else the user did meanwhile,
+// such as opening the patient search. They are still fetched again when a row is mounted, e.g. on
+// paging the table or returning to the page.
+const enrollmentSwrConfig = {
+  refreshInterval: 0,
+  revalidateOnFocus: false,
+  revalidateOnReconnect: false,
+};
+
 async function fetchActivePatientPrograms(patientUuid: string): Promise<Array<PatientProgram>> {
   const { data } = await openmrsFetch<{ results: Array<PatientProgram> }>(activeProgramsUrl(patientUuid));
   return (data?.results ?? []).filter((enrollment) => !enrollment.dateCompleted);
@@ -28,6 +40,7 @@ export function useActivePatientPrograms(patientUuid: string) {
   const { data, isLoading } = useSWR<{ data: { results: Array<PatientProgram> } }, Error>(
     patientUuid ? activeProgramsUrl(patientUuid) : null,
     openmrsFetch,
+    enrollmentSwrConfig,
   );
 
   const activePrograms = useMemo(
@@ -78,8 +91,10 @@ export function usePrograms() {
  */
 export function useActiveProgramsForPatients(patientUuids: Array<string>) {
   const swrKey = patientUuids.length ? ['queue-entry-active-programs', ...patientUuids] : null;
-  const { data, isLoading } = useSWR<Array<Array<PatientProgram>>>(swrKey, () =>
-    Promise.all(patientUuids.map(fetchActivePatientPrograms)),
+  const { data, isLoading } = useSWR<Array<Array<PatientProgram>>>(
+    swrKey,
+    () => Promise.all(patientUuids.map(fetchActivePatientPrograms)),
+    enrollmentSwrConfig,
   );
 
   const programsByPatientUuid = useMemo(() => {
