@@ -15,7 +15,9 @@ import { useCurrentQueueEntries } from '../hooks/useCurrentQueueEntries';
  */
 export function useCheckedInPatients() {
   const { concepts } = useConfig<ConfigObject>();
-  const { currentQueueEntries, isLoading, isValidating } = useCurrentQueueEntries();
+  // Counts over a list still arriving page by page would be too low; show the cards loading until it's complete.
+  const { currentQueueEntries, isLoading: isLoadingEntries, isPartial, isValidating } = useCurrentQueueEntries();
+  const isLoading = isLoadingEntries || isPartial;
 
   const checkedInPatientsCount = useMemo(
     () => currentQueueEntries.filter((entry) => entry.status?.uuid === concepts.defaultTransitionStatus).length,
@@ -35,7 +37,9 @@ export function useCheckedInPatients() {
  */
 export function useUrgentPatients() {
   const { concepts } = useConfig<ConfigObject>();
-  const { currentQueueEntries, isLoading, isValidating } = useCurrentQueueEntries();
+  // Counts over a list still arriving page by page would be too low; show the cards loading until it's complete.
+  const { currentQueueEntries, isLoading: isLoadingEntries, isPartial, isValidating } = useCurrentQueueEntries();
+  const isLoading = isLoadingEntries || isPartial;
 
   const urgentPatientsCount = useMemo(
     () =>
@@ -56,7 +60,9 @@ export function useUrgentPatients() {
  */
 export function useCompletedVisits() {
   const { concepts } = useConfig<ConfigObject>();
-  const { currentQueueEntries, isLoading, isValidating } = useCurrentQueueEntries();
+  // Counts over a list still arriving page by page would be too low; show the cards loading until it's complete.
+  const { currentQueueEntries, isLoading: isLoadingEntries, isPartial, isValidating } = useCurrentQueueEntries();
+  const isLoading = isLoadingEntries || isPartial;
 
   const completedToday = useMemo(
     () => currentQueueEntries.filter((entry) => entry.status?.uuid === concepts.defaultFinishedServiceStatus),

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
-import { openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
+import { openmrsFetch, restBaseUrl, useConfig } from '@openmrs/esm-framework';
+import { type ConfigObject } from '../config-schema';
 import { type QueueEntry, type QueueEntrySearchCriteria } from '../types';
 
 const queueEntryBaseUrl = `${restBaseUrl}/queue-entry`;
@@ -271,46 +272,130 @@ async function fetchTotalCount(url: string): Promise<number> {
 }
 
 /**
- * Fetches every page of a queue-entry query at once, by `startIndex`, rather than following each
- * page's `next` link in turn (as `useOpenmrsFetchAll` does). A busy site's day runs to many hundreds
- * of entries - each patient leaves one behind per room they pass through - and walking those pages
- * one round trip at a time kept the table on its loading skeleton for well over ten seconds.
- *
- * How many pages to ask for comes from the count this query reported last time; on its first fetch
- * a count-only request supplies it. If the query has since grown past that, the missing pages are
- * fetched once the first batch reports the new `totalCount`.
- *
- * Entries created or ended between page requests can shift the page boundaries, so results are
- * de-duplicated by uuid; anything that slips between pages is picked up on the next revalidation.
+ * How many pages of one queue-entry query are requested at the same time. Each page of 100 entries
+ * keeps one server thread busy for about half a second, so a busy day's list requested all at once
+ * (21 pages on a 2,100-entry day) took 5+ cores for a second or two - every time someone opened the
+ * queue screen. One page at a time keeps a load of any size to about one core. Set from the
+ * `queueEntriesFetchConcurrency` config property by `useQueueEntries`.
  */
-async function fetchAllQueueEntryPages(url: string): Promise<Array<QueueEntry>> {
-  const pageSize = Number(new URLSearchParams(url.split('?')[1]).get('limit')) || maxResultsPerPage;
-  const fetchPages = (fromIndex: number, toIndex: number) => {
-    const startIndexes: Array<number> = [];
-    for (let startIndex = fromIndex; startIndex === fromIndex || startIndex < toIndex; startIndex += pageSize) {
-      startIndexes.push(startIndex);
+let pageFetchConcurrency = 1;
+
+function setPageFetchConcurrency(value: unknown) {
+  const concurrency = Math.floor(Number(value));
+  pageFetchConcurrency = Number.isFinite(concurrency) && concurrency >= 1 ? concurrency : 1;
+}
+
+/**
+ * Runs `task` for every item, at most `limit` at a time, in the items' order. `onResult` is told
+ * of each result as it arrives. Resolves to the results in the items' order.
+ */
+async function mapWithConcurrency<T, R>(
+  items: Array<T>,
+  limit: number,
+  task: (item: T) => Promise<R>,
+  onResult?: (index: number, result: R) => void,
+): Promise<Array<R>> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await task(items[index]);
+      onResult?.(index, results[index]);
     }
-    return Promise.all(
-      startIndexes.map((startIndex) =>
-        openmrsFetch<QueueEntryPage>(startIndex ? `${url}&startIndex=${startIndex}` : url).then(({ data }) => data),
-      ),
-    );
   };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, worker));
+  return results;
+}
 
-  const expectedTotal = lastTotalCounts.get(url) ?? (await fetchTotalCount(url));
-  const pages = await fetchPages(0, expectedTotal);
-  const fetchedUpTo = pages.length * pageSize;
-  const totalCount = Math.max(0, ...pages.map((page) => page?.totalCount ?? 0));
-  if (totalCount > fetchedUpTo) {
-    pages.push(...(await fetchPages(fetchedUpTo, totalCount)));
-  }
-  lastTotalCounts.set(url, totalCount);
-
+function uniqueEntries(pages: Array<QueueEntryPage | undefined>): Array<QueueEntry> {
   const entriesByUuid = new Map<string, QueueEntry>();
   for (const entry of pages.flatMap((page) => page?.results ?? [])) {
     entriesByUuid.set(entry.uuid, entry);
   }
   return [...entriesByUuid.values()];
+}
+
+/**
+ * Fetches every page of a queue-entry query by `startIndex`, `pageFetchConcurrency` pages at a
+ * time, in order. A busy site's day runs to many hundreds of entries - each patient leaves one
+ * behind per room they pass through.
+ *
+ * How many pages to ask for comes from the count this query reported last time; on its first fetch
+ * a count-only request supplies it. If the query has since grown past that, the missing pages are
+ * fetched once the pages fetched so far report the new `totalCount`.
+ *
+ * `onProgress` is given the entries of every page received so far, from the first page on without
+ * gaps, each time that run of pages grows - so a view can show the first page while the rest load.
+ *
+ * Entries created or ended between page requests can shift the page boundaries, so results are
+ * de-duplicated by uuid; anything that slips between pages is picked up on the next revalidation.
+ */
+async function fetchAllQueueEntryPages(
+  url: string,
+  onProgress?: (entriesSoFar: Array<QueueEntry>) => void,
+): Promise<Array<QueueEntry>> {
+  const pageSize = Number(new URLSearchParams(url.split('?')[1]).get('limit')) || maxResultsPerPage;
+  const pages: Array<QueueEntryPage | undefined> = [];
+  let reportedPages = 0;
+  const fetchPages = async (fromIndex: number, toIndex: number) => {
+    const startIndexes: Array<number> = [];
+    for (let startIndex = fromIndex; startIndex === fromIndex || startIndex < toIndex; startIndex += pageSize) {
+      startIndexes.push(startIndex);
+    }
+    const offset = pages.length;
+    pages.length += startIndexes.length;
+    await mapWithConcurrency(
+      startIndexes,
+      pageFetchConcurrency,
+      (startIndex) =>
+        openmrsFetch<QueueEntryPage>(startIndex ? `${url}&startIndex=${startIndex}` : url).then(({ data }) => data),
+      (index, page) => {
+        pages[offset + index] = page ?? { results: [] };
+        if (!onProgress) {
+          return;
+        }
+        let contiguous = reportedPages;
+        while (contiguous < pages.length && pages[contiguous] !== undefined) {
+          contiguous++;
+        }
+        if (contiguous > reportedPages) {
+          reportedPages = contiguous;
+          onProgress(uniqueEntries(pages.slice(0, contiguous)));
+        }
+      },
+    );
+  };
+
+  const expectedTotal = lastTotalCounts.get(url) ?? (await fetchTotalCount(url));
+  await fetchPages(0, expectedTotal);
+  const fetchedUpTo = pages.length * pageSize;
+  const totalCount = Math.max(0, ...pages.map((page) => page?.totalCount ?? 0));
+  if (totalCount > fetchedUpTo) {
+    await fetchPages(fetchedUpTo, totalCount);
+  }
+  lastTotalCounts.set(url, totalCount);
+
+  return uniqueEntries(pages);
+}
+
+/**
+ * The entries received so far by a full fetch that is still loading, for a query nothing was
+ * cached for - so the queue table can show the first page while the remaining pages arrive one by
+ * one, rather than a skeleton until the last one does. Keyed by URL; `token` identifies the fetch
+ * that wrote it, so an older fetch that finishes late can't overwrite a newer one's progress.
+ */
+const partialEntries = new Map<string, { token: number; entries: Array<QueueEntry> }>();
+const partialEntriesListeners = new Set<() => void>();
+let partialEntriesToken = 0;
+
+function notifyPartialEntriesListeners() {
+  partialEntriesListeners.forEach((listener) => listener());
+}
+
+function subscribeToPartialEntries(listener: () => void) {
+  partialEntriesListeners.add(listener);
+  return () => partialEntriesListeners.delete(listener);
 }
 
 /** The latest entries of each `repString` query, kept up to date from signatures. Keyed by URL. */
@@ -322,6 +407,7 @@ const maxKnownQueries = 20;
 export function forgetKnownQueueEntries() {
   knownEntries.clear();
   lastTotalCounts.clear();
+  partialEntries.clear();
 }
 
 function rememberEntries(url: string, entries: Array<QueueEntry>, fullyFetchedAt: number) {
@@ -334,11 +420,38 @@ function rememberEntries(url: string, entries: Array<QueueEntry>, fullyFetchedAt
 
 async function fetchAllQueueEntriesInFull(url: string): Promise<Array<QueueEntry>> {
   const startedAt = Date.now();
-  const entries = (await fetchAllQueueEntryPages(url)).map(withDisplayNames);
-  if (new URLSearchParams(url.split('?')[1]).get('v') === repString) {
-    rememberEntries(url, entries, startedAt);
+  const isViewsQuery = new URLSearchParams(url.split('?')[1]).get('v') === repString;
+  // With nothing cached to show meanwhile, let the views show each page as it arrives. When there
+  // is a cached list (a reload every `fullRefetchIntervalMs`), it stays on screen instead.
+  const token = ++partialEntriesToken;
+  const showProgress = isViewsQuery && !knownEntries.has(url);
+  try {
+    const entries = (
+      await fetchAllQueueEntryPages(
+        url,
+        showProgress
+          ? (entriesSoFar) => {
+              const current = partialEntries.get(url);
+              if (!current || current.token <= token) {
+                partialEntries.set(url, { token, entries: entriesSoFar.map(withDisplayNames) });
+                notifyPartialEntriesListeners();
+              }
+            }
+          : undefined,
+      )
+    ).map(withDisplayNames);
+    // A fetch started later may have finished first; keep the newer entries.
+    const known = knownEntries.get(url);
+    if (isViewsQuery && (!known || known.fullyFetchedAt <= startedAt)) {
+      rememberEntries(url, entries, startedAt);
+    }
+    return entries;
+  } finally {
+    if (partialEntries.get(url)?.token === token) {
+      partialEntries.delete(url);
+      notifyPartialEntriesListeners();
+    }
   }
-  return entries;
 }
 
 async function fetchSingleQueueEntry(uuid: string): Promise<QueueEntry> {
@@ -426,6 +539,9 @@ async function fetchQueueEntries(url: string): Promise<Array<QueueEntry>> {
 }
 
 export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: string = repString) {
+  const config = useConfig<ConfigObject>();
+  setPageFetchConcurrency(config?.queueEntriesFetchConcurrency);
+
   const searchParam = new URLSearchParams();
   searchParam.append('v', rep);
   searchParam.append('totalCount', 'true');
@@ -437,12 +553,21 @@ export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: 
     }
   }
 
+  const url = `${queueEntryBaseUrl}?${searchParam.toString()}`;
   // A plain SWR key (rather than useSWRInfinite's `$inf$` one) also means a revalidation always
   // refetches every page together, so a moved patient's row on a later page can't go stale.
   const { data, error, isLoading, isValidating, mutate } = useSWR<Array<QueueEntry>, Error>(
-    `${queueEntryBaseUrl}?${searchParam.toString()}`,
+    url,
     fetchQueueEntriesShared,
   );
+
+  // Coming back to the queue screen remounts these hooks with an empty SWR cache, but this page
+  // load may already hold the list from a few minutes ago: show that at once while the mount's own
+  // fetch brings it up to date - which, within `fullRefetchIntervalMs`, is a signature check, not a
+  // full reload. And while a first full load is still arriving, show the pages received so far.
+  const cachedEntries = data ? undefined : knownEntries.get(url)?.entries;
+  const partial = useSyncExternalStore(subscribeToPartialEntries, () => partialEntries.get(url)?.entries);
+  const shownEntries = data ?? cachedEntries ?? partial;
 
   useEffect(() => {
     const revalidate = () => mutate();
@@ -451,9 +576,11 @@ export function useQueueEntries(searchCriteria?: QueueEntrySearchCriteria, rep: 
   }, [mutate]);
 
   return {
-    queueEntries: data ?? [],
+    queueEntries: shownEntries ?? [],
     error,
-    isLoading,
+    isLoading: isLoading && !shownEntries,
+    /** Only some pages of a first full load have arrived; counts over these entries aren't final. */
+    isPartial: !data && !cachedEntries && Boolean(partial),
     isValidating,
     mutate,
   };
