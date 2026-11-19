@@ -98,7 +98,12 @@ export function useInfinitePatientSearch(
   const { data, isLoading, isValidating, setSize, error, size } = useSWRInfinite<InfinitePatientSearchResponse, Error>(
     shouldFetch ? getUrl : null,
     fetcher,
-    { keepPreviousData: true },
+    {
+      keepPreviousData: true,
+      // Loading the next page must not fetch the first one again (SWR's default), which would
+      // double the requests whenever the user pages or scrolls further.
+      revalidateFirstPage: false,
+    },
   );
 
   // Filter out null patients and patients with null person property to prevent errors

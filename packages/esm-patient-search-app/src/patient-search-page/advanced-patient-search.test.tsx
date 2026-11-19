@@ -8,7 +8,7 @@ import React from 'react';
 import { vi, describe, it, expect, test, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { getDefaultsFromConfigSchema, useConfig } from '@openmrs/esm-framework';
+import { getDefaultsFromConfigSchema, PatientPhoto, useConfig } from '@openmrs/esm-framework';
 import { configSchema, type PatientSearchConfig } from '../config-schema';
 import { type PatientSearchResponse } from '../types';
 import { mockAdvancedSearchResults } from '__mocks__';
@@ -209,6 +209,73 @@ describe('AdvancedPatientSearchComponent', () => {
       // // expects all search results 2 patients
       // const patientBanners = screen.getAllByRole('banner');
       // expect(patientBanners).toHaveLength(2);
+    });
+  });
+
+  describe('Paging', () => {
+    // A broad search: the first server page (50 patients) of 2,001 matches is loaded.
+    const firstServerPage = Array.from({ length: 50 }, (_, index) => ({
+      ...mockAdvancedSearchResults[0],
+      uuid: `patient-${index}`,
+      person: {
+        ...mockAdvancedSearchResults[0].person,
+        gender: index % 2 ? 'F' : 'M',
+        personName: { ...mockAdvancedSearchResults[0].person.personName, display: `Patient ${index}` },
+      },
+    })) as unknown as PatientSearchResponse['data'];
+
+    const mockSetPage = vi.fn();
+
+    beforeEach(() => {
+      // Render each card as its patient's name, to tell which results are on screen
+      vi.mocked(PatientPhoto).mockImplementation(({ patientName }) => <div>{patientName}</div>);
+      mockSetPage.mockReset();
+      mockUseInfinitePatientSearch.mockReturnValue({
+        ...mockSearchResults,
+        data: firstServerPage,
+        totalResults: 2001,
+        hasMore: true,
+        currentPage: 1,
+        setPage: mockSetPage,
+      });
+    });
+
+    it('shows the server total and loads only the first page of results', () => {
+      renderComponent();
+
+      expect(screen.getByText(/2001 search result/)).toBeInTheDocument();
+      expect(screen.getByText('Patient 0')).toBeInTheDocument();
+      expect(screen.queryByText('Patient 20')).not.toBeInTheDocument();
+      expect(mockSetPage).not.toHaveBeenCalled();
+    });
+
+    it('does not fetch the next server page until the user pages beyond the loaded results', async () => {
+      renderComponent();
+
+      // Results 21-40 are already loaded
+      await user.click(screen.getByRole('button', { name: '2' }));
+      expect(screen.getByText('Patient 20')).toBeInTheDocument();
+      expect(mockSetPage).not.toHaveBeenCalled();
+
+      // Results 41-60 need the second server page
+      await user.click(screen.getByRole('button', { name: '3' }));
+      expect(screen.getByText('Patient 40')).toBeInTheDocument();
+      expect(mockSetPage).toHaveBeenCalledTimes(1);
+      expect(mockSetPage).toHaveBeenCalledWith(2);
+    });
+
+    it('fetches every page only while a filter is applied', async () => {
+      renderComponent();
+      expect(mockSetPage).not.toHaveBeenCalled();
+
+      await user.click(screen.getByRole('tab', { name: /female/i }));
+      await user.click(screen.getByRole('button', { name: /apply/i }));
+
+      expect(mockSetPage).toHaveBeenCalled();
+      const loadNextPage = mockSetPage.mock.calls.at(-1)[0] as (page: number) => number;
+      expect(loadNextPage(1)).toBe(2);
+      // The filtered results are counted, not the server total
+      expect(screen.getByText(/25 search result/)).toBeInTheDocument();
     });
   });
 

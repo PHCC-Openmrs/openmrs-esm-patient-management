@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import classNames from 'classnames';
 import { useConfig, type OpenmrsResource } from '@openmrs/esm-framework';
 import { type PatientSearchConfig } from '../config-schema';
@@ -13,6 +13,9 @@ interface AdvancedPatientSearchProps {
   inTabletOrOverlay?: boolean;
   stickyPagination?: boolean;
 }
+
+/** Patients requested from the server per page. The results list shows 15-20 of them at a time. */
+const serverPageSize = 50;
 
 const AdvancedPatientSearchComponent: React.FC<AdvancedPatientSearchProps> = ({
   query,
@@ -35,20 +38,38 @@ const AdvancedPatientSearchComponent: React.FC<AdvancedPatientSearchProps> = ({
     return count;
   }, [filters]);
 
+  const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
+
   const {
     data: searchResults,
-    currentPage,
-    setPage,
+    currentPage: loadedPages,
+    setPage: setLoadedPages,
     hasMore,
     isLoading,
+    isValidating,
     fetchError,
-  } = useInfinitePatientSearch(query, includeDead, !!query, 50);
+    totalResults,
+  } = useInfinitePatientSearch(query, includeDead, !!query, serverPageSize);
 
+  // The refine-search filters run in the browser (the REST patient search only takes `q`), so
+  // they need every match. Only while a filter is applied, keep loading pages until all are in.
+  // Without a filter, pages are loaded on demand as the user pages through the results (see
+  // `loadResultsUpTo`), so a broad search costs one request instead of one per 50 matches.
   useEffect(() => {
-    if (searchResults?.length === currentPage * 50 && hasMore) {
-      setPage((page) => page + 1);
+    if (filtersApplied && hasMore && searchResults?.length === loadedPages * serverPageSize) {
+      setLoadedPages((page) => page + 1);
     }
-  }, [searchResults, currentPage, hasMore, setPage]);
+  }, [filtersApplied, searchResults, loadedPages, hasMore, setLoadedPages]);
+
+  const loadResultsUpTo = useCallback(
+    (count: number) => {
+      const pagesNeeded = Math.ceil(count / serverPageSize);
+      if (pagesNeeded > loadedPages) {
+        setLoadedPages(pagesNeeded);
+      }
+    },
+    [loadedPages, setLoadedPages],
+  );
 
   const filteredResults = useMemo(() => {
     if (searchResults && filtersApplied) {
@@ -128,6 +149,12 @@ const AdvancedPatientSearchComponent: React.FC<AdvancedPatientSearchProps> = ({
     return searchResults;
   }, [filtersApplied, filters, searchResults]);
 
+  // Without a filter, the server's total drives the pagination and pages are fetched as the user
+  // reaches them. With one, every page is being loaded, so the filtered list is the whole result set.
+  const serverPaging = filtersApplied
+    ? {}
+    : { totalResults, hasMore, isLoadingMore: isValidating, onLoadMore: loadResultsUpTo };
+
   return (
     <div
       className={classNames({
@@ -151,6 +178,8 @@ const AdvancedPatientSearchComponent: React.FC<AdvancedPatientSearchProps> = ({
           isLoading={isLoading}
           fetchError={fetchError}
           searchResults={filteredResults ?? []}
+          pageResetKey={filtersKey}
+          {...serverPaging}
         />
       </div>
       {inTabletOrOverlay && (
