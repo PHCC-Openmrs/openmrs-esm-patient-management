@@ -16,39 +16,37 @@ vi.mock('@openmrs/esm-api', async (importOriginal) => ({
 
 const mockOpenmrsFetch = vi.mocked(openmrsFetch);
 
-// The page size this test's stub server serves at - the `limit` the query asks for, which a real
-// server honours. The behaviour under test - revalidating pages past the first - only needs more
-// than one page to exist.
+// The page size the queue views fetch at. The behaviour under test - revalidating entries past the
+// first page - only needs more than one page to exist.
 const pageSize = 100;
-const nextPageUri = 'http://localhost/openmrs/ws/rest/v1/queue-entry?startIndex=100';
 
-function queueEntry(uuid: string, queueDisplay: string) {
-  return { uuid, display: uuid, queue: { uuid: 'queue-uuid', display: queueDisplay } } as unknown as QueueEntry;
+function queueEntry(uuid: string, queueName: string) {
+  // A move puts the patient in another queue - another uuid, not just another name.
+  return { uuid, display: uuid, queue: { uuid: `${queueName}-uuid`, name: queueName } } as unknown as QueueEntry;
 }
 
 // Entries come back oldest-first, so when a query does overflow a single page, the newest
 // entries - the ones the queue views actually display - are on the *last* page.
 const firstPage = Array.from({ length: pageSize }, (_, i) => queueEntry(`historical-entry-${i}`, 'Front Desk'));
 
-function pageResponse(results: QueueEntry[], hasNext: boolean) {
-  return {
-    data: {
-      results,
-      totalCount: pageSize + 1,
-      links: hasNext ? [{ rel: 'next', uri: nextPageUri }] : [],
-    },
-  };
-}
-
-/** Serves page 0 unchanged and page 1 with whatever queue `lastPageQueue` currently names. */
+/**
+ * Serves the first page unchanged and, after it, the moved patient's entry in whichever queue
+ * `lastPageQueue` names - paged by the `limit` and `startIndex` each request asks for.
+ */
 function serveTwoPages(lastPageQueue: string) {
-  mockOpenmrsFetch.mockImplementation((url: string) =>
-    Promise.resolve(
-      url.includes('startIndex=100')
-        ? pageResponse([queueEntry('moved-entry', lastPageQueue)], false)
-        : pageResponse(firstPage, true),
-    ),
-  );
+  const entries = [...firstPage, queueEntry('moved-entry', lastPageQueue)];
+  mockOpenmrsFetch.mockImplementation((url: string) => {
+    const params = new URLSearchParams(url.split('?')[1]);
+    const startIndex = Number(params.get('startIndex') ?? 0);
+    const limit = Number(params.get('limit') ?? 50);
+    const single = url.split('?')[0].match(/queue-entry\/([^/]+)$/);
+    if (single) {
+      return Promise.resolve({ data: entries.find(({ uuid }) => uuid === single[1]) });
+    }
+    return Promise.resolve({
+      data: { results: entries.slice(startIndex, startIndex + limit), totalCount: entries.length },
+    });
+  });
 }
 
 let mutateQueueEntries: () => Promise<unknown>;
