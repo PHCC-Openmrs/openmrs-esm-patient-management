@@ -88,7 +88,7 @@ export function useCurrentQueueEntries() {
     [selectedServiceUuid, concepts.defaultTransitionStatus, concepts.defaultFinishedServiceStatus],
   );
 
-  const { queueEntries, isLoading, error, isValidating } = useQueueEntries(searchCriteria);
+  const { queueEntries, isLoading, isPartial, error, isValidating } = useQueueEntries(searchCriteria);
 
   // Program enrollment isn't part of the queue-entry representation, so it can't be filtered
   // server-side -- only fetched (and filtered) once we know which patients are in the queue.
@@ -159,5 +159,5 @@ export function useCurrentQueueEntries() {
     columns,
   ]);
 
-  return { currentQueueEntries, isLoading, error, isValidating };
+  return { currentQueueEntries, isLoading, isPartial, error, isValidating };
 }

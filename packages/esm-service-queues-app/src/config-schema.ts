@@ -509,6 +509,18 @@ export const configSchema = {
       ),
     ],
   },
+  queueEntriesFetchConcurrency: {
+    _type: Type.Number,
+    _default: 1,
+    _description:
+      'How many pages (of 100 entries) of the queue list are requested at the same time when it is loaded in full. Each page keeps one server core busy for about half a second, so with 1 a load of any size uses about one core - a 1,000-patient day loads in ~5 s, its first rows in under a second. Raise it only when the backend has cores to spare; the old behaviour (every page at once) took 5+ cores for a second or two on a 2,000-entry day.',
+    _validators: [
+      validator(
+        (concurrency: number) => Number.isInteger(concurrency) && concurrency >= 1,
+        'queueEntriesFetchConcurrency must be a whole number, 1 or more',
+      ),
+    ],
+  },
   showRecommendedVisitTypeTab: {
     _type: Type.Boolean,
     _default: false,
@@ -594,6 +606,7 @@ export interface ConfigObject {
     value: string;
   };
   queueTables: TablesConfig;
+  queueEntriesFetchConcurrency: number;
   showRecommendedVisitTypeTab: boolean;
   visitNoteEncounterTypeUuid: string;
   visitQueueNumberAttributeUuid: string | null;
