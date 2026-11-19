@@ -82,4 +82,19 @@ describe('useInfinitePatientSearch', () => {
     expect(result.current.hasMore).toBe(false);
     expect(result.current.totalResults).toBe(0);
   });
+
+  it('loads the next page without fetching the first page again', async () => {
+    const { result } = renderHook(() => useInfinitePatientSearch('Jo', false, true, 10), { wrapper });
+
+    await waitFor(() => expect(result.current.data).toHaveLength(10));
+    expect(mockOpenmrsFetch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await result.current.setPage(2);
+    });
+
+    await waitFor(() => expect(result.current.data).toHaveLength(20));
+    expect(mockOpenmrsFetch).toHaveBeenCalledTimes(2);
+    expect(mockOpenmrsFetch.mock.calls[1][0]).toContain('startIndex=10');
+  });
 });
