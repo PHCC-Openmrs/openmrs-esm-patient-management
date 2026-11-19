@@ -16,3 +16,11 @@ export const queueEntryCustomRepresentation =
 // Error codes
 export const DUPLICATE_QUEUE_ENTRY_ERROR_CODE = '[queue.entry.duplicate.patient]';
 export const QUEUE_ENTRY_ALREADY_ENDED_ERROR = 'queue entry that has already ended';
+
+/**
+ * How often the queue screen re-reads the metadata behind its filters and columns (queues,
+ * programs, queue locations). The views opt every SWR hook under them into a 15-second poll, and
+ * `useSWRImmutable` does not opt out of that, so this metadata - which practically never changes
+ * while the screen is open - used to be re-fetched as often as the queue itself.
+ */
+export const metadataRefreshIntervalMs = 5 * 60 * 1000;
