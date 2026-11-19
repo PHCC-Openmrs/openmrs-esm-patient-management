@@ -1,5 +1,6 @@
 import { getLocale, openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
 import useSWRImmutable from 'swr/immutable';
+import { metadataRefreshIntervalMs } from '../constants';
 import { type Queue } from '../types';
 import { useMemo } from 'react';
 
@@ -8,7 +9,9 @@ export function useQueues(locationUuid?: string) {
     'custom:(uuid,display,name,description,service:(uuid,display),allowedPriorities:(uuid,display),allowedStatuses:(uuid,display),location:(uuid,display))';
   const apiUrl = `${restBaseUrl}/queue?v=${customRepresentation}` + (locationUuid ? `&location=${locationUuid}` : '');
 
-  const { data, ...rest } = useSWRImmutable<{ data: { results: Array<Queue> } }, Error>(apiUrl, openmrsFetch);
+  const { data, ...rest } = useSWRImmutable<{ data: { results: Array<Queue> } }, Error>(apiUrl, openmrsFetch, {
+    refreshInterval: metadataRefreshIntervalMs,
+  });
 
   const queues = useMemo(
     () => data?.data?.results.sort((a, b) => a.display.localeCompare(b.display, getLocale())) ?? [],

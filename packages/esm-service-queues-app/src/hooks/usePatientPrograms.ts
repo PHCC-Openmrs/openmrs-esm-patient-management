@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import useSWR from 'swr';
 import useSWRImmutable from 'swr/immutable';
 import { type Visit } from '@openmrs/esm-framework';
+import { metadataRefreshIntervalMs } from '../constants';
 import { type PatientProgram } from '../types';
 import { getEnrollmentsSinceVisitStart, getVisitServiceProgramUuids } from '../queue-table/visit-services';
 
@@ -68,6 +69,7 @@ export function usePrograms() {
   const { data, ...rest } = useSWRImmutable<{ data: { results: Array<{ uuid: string; name: string }> } }, Error>(
     url,
     openmrsFetch,
+    { refreshInterval: metadataRefreshIntervalMs },
   );
 
   const { hiddenServicePrograms } = useConfig<{ hiddenServicePrograms: Array<string> }>();
@@ -117,7 +119,7 @@ export function useVisitServicePrograms(patientUuid: string, visit?: Visit | nul
   const { activePrograms, isLoading: isLoadingEnrollments } = useActivePatientPrograms(patientUuid);
   const { data, isLoading: isLoadingPrograms } = useSWRImmutable<{
     data: { results: Array<{ uuid: string; name: string }> };
-  }>(`${restBaseUrl}/program?v=custom:(uuid,name)`, openmrsFetch);
+  }>(`${restBaseUrl}/program?v=custom:(uuid,name)`, openmrsFetch, { refreshInterval: metadataRefreshIntervalMs });
 
   const programs = useMemo(() => {
     const serviceProgramUuids = getVisitServiceProgramUuids(visit);

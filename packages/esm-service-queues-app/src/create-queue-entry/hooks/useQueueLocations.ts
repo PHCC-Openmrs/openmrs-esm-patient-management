@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { fhirBaseUrl, getLocale, useFhirFetchAll, useSession } from '@openmrs/esm-framework';
+import { metadataRefreshIntervalMs } from '../../constants';
 
 /**
  * @param applyLocationRestriction Whether to narrow the result to the current user's
@@ -13,7 +14,9 @@ import { fhirBaseUrl, getLocale, useFhirFetchAll, useSession } from '@openmrs/es
  */
 export function useQueueLocations(applyLocationRestriction = true) {
   const apiUrl = `${fhirBaseUrl}/Location?_summary=data&_tag=queue location`;
-  const { data, error, isLoading } = useFhirFetchAll<fhir.Location>(apiUrl);
+  const { data, error, isLoading } = useFhirFetchAll<fhir.Location>(apiUrl, {
+    swrInfiniteConfig: { refreshInterval: metadataRefreshIntervalMs },
+  });
   const { user } = useSession();
 
   const allowedLocationUuids = useMemo(() => {

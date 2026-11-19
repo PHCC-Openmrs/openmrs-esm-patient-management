@@ -6,7 +6,7 @@ import { mockSession } from '__mocks__';
 import { renderWithSwr } from 'tools';
 import { type ConfigObject, configSchema } from '../config-schema';
 import { type QueueEntry } from '../types';
-import { repString } from './useQueueEntries';
+import { repString, signatureRepString, withDisplayNames } from './useQueueEntries';
 import CallQueueEntryModal from '../modals/call-modal/call-queue-entry.modal';
 import UndoTransitionQueueEntryModal from '../modals/undo-transition-queue-entry.modal';
 import QueueTable from '../queue-table/queue-table.component';
@@ -15,19 +15,17 @@ import QueueTable from '../queue-table/queue-table.component';
 const openmrsIdTypeUuid = '05a29f94-c0ed-11e2-94be-8c13b969e334';
 const visitQueueNumberAttributeUuid = 'queue-number-visit-attr-type-uuid';
 
-// Shaped exactly like `repString`: asserted against it below, then rendered through the columns and row actions,
-// so a future trim that drops a field something still reads fails here.
-const repShapedQueueEntry = {
+// Shaped exactly like `repString`: asserted against it below, then rendered through the columns and row actions
+// (after `withDisplayNames`, as useQueueEntries hands entries out), so a future trim that drops a field something
+// still reads fails here.
+const serverQueueEntry = {
   uuid: 'queue-entry-uuid',
   display: 'Alice Johnson',
-  queue: { uuid: 'current-queue-uuid', display: 'General Surgery', name: 'General Surgery' },
+  queue: { uuid: 'current-queue-uuid', name: 'General Surgery' },
   status: { uuid: 'in-service-status-uuid', display: 'In Service' },
   patient: {
     uuid: 'patient-uuid',
-    display: 'Alice Johnson',
     person: {
-      uuid: 'person-uuid',
-      display: 'Alice Johnson',
       age: 40,
       birthdate: '1986-01-01T00:00:00.000+0000',
       gender: 'F',
@@ -36,7 +34,7 @@ const repShapedQueueEntry = {
       {
         uuid: 'identifier-uuid',
         identifier: '100GEJ',
-        identifierType: { uuid: openmrsIdTypeUuid, display: 'OpenMRS ID' },
+        identifierType: { uuid: openmrsIdTypeUuid, name: 'OpenMRS ID' },
       },
     ],
   },
@@ -44,7 +42,7 @@ const repShapedQueueEntry = {
     uuid: 'visit-uuid',
     startDatetime: '2024-01-02T00:00:00.000+0000',
     stopDatetime: null,
-    location: { uuid: 'visit-location-uuid', display: 'Deir Al-Balah PHCC' },
+    location: { uuid: 'visit-location-uuid', name: 'Deir Al-Balah PHCC' },
     attributes: [{ uuid: 'visit-attribute-uuid', value: '42', attributeType: { uuid: visitQueueNumberAttributeUuid } }],
   },
   priority: { uuid: 'urgent-priority-uuid', display: 'Urgent' },
@@ -52,13 +50,15 @@ const repShapedQueueEntry = {
   sortWeight: 0,
   startedAt: '2024-01-02T00:00:00.000+0000',
   endedAt: null,
-  queueComingFrom: { uuid: 'coming-from-queue-uuid', display: 'Triage' },
+  queueComingFrom: { uuid: 'coming-from-queue-uuid', name: 'Triage' },
   previousQueueEntry: {
     uuid: 'previous-queue-entry-uuid',
     startedAt: '2024-01-01T00:00:00.000+0000',
     status: { uuid: 'waiting-status-uuid', display: 'Waiting' },
   },
 } as unknown as QueueEntry;
+
+const repShapedQueueEntry = withDisplayNames(serverQueueEntry);
 
 type KeyTree = { [key: string]: KeyTree | true };
 
@@ -121,7 +121,29 @@ describe('Queue entry custom representation contract', () => {
   });
 
   it('has a fixture shaped exactly like the representation useQueueEntries requests', () => {
-    expect(toKeyTree(repShapedQueueEntry)).toEqual(parseRepresentation(repString));
+    expect(toKeyTree(serverQueueEntry)).toEqual(parseRepresentation(repString));
+  });
+
+  it('only polls for signature fields that the full representation also carries', () => {
+    // Each poll's signatures are compared with the same fields of the entries last fetched in full, so a
+    // field missing from those would count as a change on every poll.
+    const isContainedIn = (inner: KeyTree, outer: KeyTree) =>
+      Object.entries(inner).every(
+        ([key, value]) =>
+          key in outer && (value === true || (outer[key] !== true && isContainedIn(value, outer[key] as KeyTree))),
+      );
+    expect(isContainedIn(parseRepresentation(signatureRepString), parseRepresentation(repString))).toBe(true);
+  });
+
+  it('requests no display string that has a cheaper equivalent', () => {
+    // Metadata `display` is a message-source lookup per entry; `name` gives the same string.
+    const rep = parseRepresentation(repString) as any;
+    expect(rep.queue.display).toBeUndefined();
+    expect(rep.queueComingFrom.display).toBeUndefined();
+    expect(rep.visit.location.display).toBeUndefined();
+    expect(rep.patient.display).toBeUndefined();
+    expect(rep.patient.person.display).toBeUndefined();
+    expect(rep.patient.identifiers.identifierType.display).toBeUndefined();
   });
 
   it('supplies every field read by the configured columns', () => {
@@ -141,6 +163,7 @@ describe('Queue entry custom representation contract', () => {
               'priority',
               'status',
               'queue',
+              'location',
               'queue-number',
               'visit-start-time',
               'wait-time',
@@ -160,6 +183,7 @@ describe('Queue entry custom representation contract', () => {
     expect(screen.getByText('Urgent')).toBeInTheDocument();
     expect(screen.getByText('In Service')).toBeInTheDocument();
     expect(screen.getByText('General Surgery')).toBeInTheDocument();
+    expect(screen.getByText('Deir Al-Balah PHCC')).toBeInTheDocument();
     expect(screen.getByText('42')).toBeInTheDocument();
     // patient-age, visit-start-time and wait-time render "NaN"/"Invalid Date" if birthdate or a datetime is dropped.
     expect(screen.queryByText(/NaN|Invalid Date/i)).not.toBeInTheDocument();
