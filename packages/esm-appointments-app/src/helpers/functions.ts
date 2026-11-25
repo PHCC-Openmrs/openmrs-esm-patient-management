@@ -2,10 +2,19 @@ import dayjs, { type Dayjs } from 'dayjs';
 import { type TFunction } from 'i18next';
 import { launchWorkspace2, type Workspace2DefinitionProps, restBaseUrl } from '@openmrs/esm-framework';
 import { AppointmentStatus } from '../types';
-import { appointmentsFormWorkspace, omrsDateFormat } from '../constants';
+import { appointmentsFormWorkspace } from '../constants';
+
+/**
+ * Formats a date for the appointments module's date query parameters (`forDate`, and `startDate`/`endDate`
+ * of the appointment summary). The module parses them as UTC wall-clock time (`yyyy-MM-dd'T'HH:mm:ss.SSS` in
+ * UTC) and ignores any offset, so they must be sent as the UTC instant. Local time with an offset, e.g.
+ * `2026-11-24T00:00:00.000+0200`, was read as 00:00 UTC, which is 02:00 in Gaza, so every day ran from
+ * 02:00 to 02:00 and appointments in the first hours of the day were listed under the previous day.
+ */
+export const toAppointmentsApiDate = (date: dayjs.ConfigType): string => dayjs(date).toISOString();
 
 export const buildAppointmentsUrl = (isoDate: string): string => {
-  const startOfDay = dayjs(isoDate).startOf('day').format(omrsDateFormat);
+  const startOfDay = toAppointmentsApiDate(dayjs(isoDate).startOf('day'));
   return `${restBaseUrl}/appointments?forDate=${encodeURIComponent(startOfDay)}`;
 };
 
