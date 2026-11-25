@@ -1,7 +1,7 @@
 import { openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
 import dayjs from 'dayjs';
 import useSWR from 'swr';
-import { omrsDateFormat } from '../constants';
+import { toAppointmentsApiDate } from '../helpers/functions';
 import { type DailyAppointmentsCountByService } from '../types';
 
 interface AppointmentCountMapEntry {
@@ -48,22 +48,22 @@ export const useAppointmentsCalendar = (forDate: string, period: string) => {
 function evaluateAppointmentCalendarDates(forDate: string, period: string) {
   if (period === 'daily') {
     return {
-      startDate: dayjs(forDate).startOf('day').format(omrsDateFormat),
-      endDate: dayjs(forDate).endOf('day').format(omrsDateFormat),
+      startDate: toAppointmentsApiDate(dayjs(forDate).startOf('day')),
+      endDate: toAppointmentsApiDate(dayjs(forDate).endOf('day')),
     };
   }
 
   if (period === 'weekly') {
     return {
-      startDate: dayjs(forDate).startOf('week').format(omrsDateFormat),
-      endDate: dayjs(forDate).endOf('week').format(omrsDateFormat),
+      startDate: toAppointmentsApiDate(dayjs(forDate).startOf('week')),
+      endDate: toAppointmentsApiDate(dayjs(forDate).endOf('week')),
     };
   }
 
   if (period === 'monthly') {
     return {
-      startDate: dayjs(forDate).startOf('month').format(omrsDateFormat),
-      endDate: dayjs(forDate).endOf('month').format(omrsDateFormat),
+      startDate: toAppointmentsApiDate(dayjs(forDate).startOf('month')),
+      endDate: toAppointmentsApiDate(dayjs(forDate).endOf('month')),
     };
   }
 }
