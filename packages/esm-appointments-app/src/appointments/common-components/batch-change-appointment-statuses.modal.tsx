@@ -18,7 +18,9 @@ import {
   updateVisit,
   useConfig,
   useLayoutType,
+  useSession,
 } from '@openmrs/esm-framework';
+import { canEndVisitFromSession } from '../../helpers/visit-end-permission';
 import { canTransition } from '../../helpers';
 import { changeAppointmentStatus } from '../../patient-appointments/patient-appointments.resource';
 import { getActiveVisitsForPatient } from './batch-change-appointment-statuses.resources';
@@ -50,6 +52,7 @@ const BatchChangeAppointmentStatusesModal: React.FC<BatchChangeAppointmentStatus
   const [status, setStatus] = useState<AppointmentStatus>();
   const { checkOutButton } = useConfig<ConfigObject>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const session = useSession();
 
   const invalidAppointment =
     status != null ? appointments.find((a) => a.status !== status && !canTransition(a.status, status)) : undefined;
@@ -67,11 +70,26 @@ const BatchChangeAppointmentStatusesModal: React.FC<BatchChangeAppointmentStatus
           return getActiveVisitsForPatient(appointment.patient.uuid)
             .then((response) => {
               const activeVisit = response.data.results?.[0];
-              if (activeVisit) {
+              // A visit started at another location stays open: only that location may end it.
+              if (activeVisit && canEndVisitFromSession(activeVisit, session)) {
                 const abortController = new AbortController();
                 const endVisitPayload = { stopDatetime: new Date() };
 
                 return updateVisit(activeVisit.uuid, endVisitPayload, abortController);
+              }
+              if (activeVisit) {
+                showSnackbar({
+                  title: t('visitLeftOpen', 'Visit left open'),
+                  subtitle: t(
+                    'visitLeftOpenForPatient',
+                    "{{patient}}'s visit was started at {{location}} and can only be ended there.",
+                    {
+                      patient: appointment.patient.name,
+                      location: activeVisit.location?.display ?? t('anotherLocation', 'another location'),
+                    },
+                  ),
+                  kind: 'info',
+                });
               }
             })
             .catch(() => {
@@ -133,7 +151,7 @@ const BatchChangeAppointmentStatusesModal: React.FC<BatchChangeAppointmentStatus
         mutateAppointments();
         closeModal();
       });
-  }, [status, appointments, closeModal, mutateAppointments, t]);
+  }, [status, appointments, closeModal, mutateAppointments, session, t]);
 
   return (
     <>
