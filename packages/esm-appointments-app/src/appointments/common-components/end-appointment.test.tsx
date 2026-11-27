@@ -5,7 +5,9 @@ import userEvent from '@testing-library/user-event';
 import {
   updateVisit,
   showSnackbar,
+  useSession,
   useVisit,
+  type Session,
   type VisitReturnType,
   type FetchResponse,
   type Visit,
@@ -16,6 +18,16 @@ import EndAppointmentModal from './end-appointment.modal';
 const closeModal = vi.fn();
 const mockUseVisit = vi.mocked(useVisit);
 const mockUpdateVisit = vi.mocked(updateVisit);
+const mockUseSession = vi.mocked(useSession);
+
+function sessionAt(locationUuid: string) {
+  return {
+    authenticated: true,
+    sessionId: 'session',
+    user: { uuid: 'user', privileges: [], roles: [] },
+    sessionLocation: { uuid: locationUuid, display: locationUuid },
+  } as unknown as Session;
+}
 
 vi.mock('../../patient-appointments/patient-appointments.resource', () => ({
   changeAppointmentStatus: vi.fn().mockResolvedValue({}),
@@ -68,6 +80,7 @@ describe('EndAppointmentModal', () => {
       activeVisit: { location: { uuid: 'def' }, visitType: { uuid: 'ghi' }, startDatetime: new Date() },
       mutate: vi.fn(),
     } as unknown as VisitReturnType);
+    mockUseSession.mockReturnValue(sessionAt('def'));
 
     render(<EndAppointmentModal appointmentUuid={'abc'} patientUuid={'123'} closeModal={closeModal} />);
 
@@ -83,6 +96,34 @@ describe('EndAppointmentModal', () => {
       subtitle: 'Appointment successfully ended and visit successfully closed',
       isLowContrast: true,
       kind: 'success',
+    });
+  });
+
+  it('completes the appointment but leaves open a visit started at another location', async () => {
+    const user = userEvent.setup();
+
+    mockUseVisit.mockReturnValue({
+      activeVisit: {
+        location: { uuid: 'site-a', display: 'Site A' },
+        visitType: { uuid: 'ghi' },
+        startDatetime: new Date(),
+      },
+      mutate: vi.fn(),
+    } as unknown as VisitReturnType);
+    mockUseSession.mockReturnValue(sessionAt('site-b'));
+
+    render(<EndAppointmentModal appointmentUuid={'abc'} patientUuid={'123'} closeModal={closeModal} />);
+
+    expect(screen.getByText(/the visit was left open because it was started at site a/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /check out/i }));
+
+    expect(changeAppointmentStatus).toHaveBeenCalledWith('Completed', 'abc');
+    expect(updateVisit).not.toHaveBeenCalled();
+    expect(showSnackbar).toHaveBeenCalledWith({
+      title: 'Appointment ended',
+      subtitle: 'The visit was left open because it was started at Site A. Log in at Site A to end it.',
+      isLowContrast: true,
+      kind: 'info',
     });
   });
 });
